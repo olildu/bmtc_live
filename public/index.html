@@ -11,14 +11,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0f1115; --panel: #171a21; --panel2: #1f232c; --line: #2a2f3a;
-    --text: #e8eaf0; --muted: #8b93a5; --accent: #22c55e; --accent2: #60a5fa; --warn: #f59e0b;
+    --bg: #0b0d10; --panel: #14171c; --panel2: #1b1f26; --line: #262b33; --line2: #333a45;
+    --text: #eef0f3; --muted: #9298a4; --faint: #636b78; --accent: #26b56b; --accent2: #60a5fa; --warn: #f59e0b;
+    /* service type + metro line colours used by the Plan trip ribbon */
+    --c-walk: #525a68; --c-ord: #1fae63; --c-ac: #2f80ed; --c-air: #6366f1; --c-feeder: #d9922a;
+    --c-mp: #9b4fc0; --c-mg: #1fa85a; --c-my: #e6c023;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; }
   #app { display: grid; grid-template-columns: 380px 1fr; height: 100%; }
-  #side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  #side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; }
   header { padding: 18px 18px 8px; }
   h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: -.01em; }
   h1 span { color: var(--accent); }
@@ -42,7 +45,7 @@
   .toggles input { accent-color: var(--accent); }
   .toggles select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: inherit; padding: 2px 4px; }
   .tag.walk { color: var(--accent2); border-color: rgba(96,165,250,.4); }
-  #routes, #track, #nearby { overflow-y: auto; padding: 4px 12px 18px; flex: 1; min-height: 0; }
+  #routes, #track, #nearby { padding: 4px 12px 18px; }
   .tabs { display: flex; gap: 3px; margin: 12px 18px 2px; padding: 3px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; }
   .tabs button { flex: 1; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; padding: 8px; cursor: pointer; }
   .tabs button.on { background: #2a3040; color: var(--text); }
@@ -65,30 +68,89 @@
   .when select, .when input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; padding: 7px 8px; color-scheme: dark; }
   .when input { flex: 1; min-width: 0; }
   /* journey cards */
-  .opt { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 6px; cursor: pointer; }
-  .opt:hover { border-color: #3a4152; }
-  .opt.hero { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(34,197,94,.25) inset; }
-  .opt.sel { border-color: var(--accent2); }
-  .opt.idle { opacity: .55; }
-  .otop { display: flex; gap: 10px; align-items: flex-start; }
-  .ostrip { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); }
-  .ostrip .sep { font-style: normal; color: #4a5162; }
-  .ostrip .badge { font-size: 12px; padding: 2px 7px; }
-  .oarr { text-align: right; line-height: 1.15; white-space: nowrap; }
-  .oarr small { display: block; color: var(--muted); font-size: 11px; }
-  .oarr b { font-size: 18px; }
-  .opt.hero .oarr b { font-size: 24px; color: var(--accent); }
-  .ometa { margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-  .ometa b { color: var(--text); font-weight: 600; }
-  .chip-live { color: var(--accent); }
-  .ghead { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 8px 2px; }
-  .herohead { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin: 8px 8px 0; }
-  .fork { margin-top: 8px; padding: 8px 10px; border-radius: 10px; border: 1px dashed #3a4152; font-size: 12.5px; line-height: 1.5; display: flex; gap: 8px; align-items: center; }
-  .fork span { flex: 1; }
-  .steps { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 6px; }
-  .step { display: flex; gap: 8px; padding: 5px 0; font-size: 12.5px; line-height: 1.45; }
-  .step > i { font-style: normal; width: 18px; flex: none; text-align: center; }
-  .step small { color: var(--muted); }
+  /* Plan trip header (destination-first) */
+  .searchbar { position: relative; display: flex; align-items: center; gap: 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 12px 18px 0; }
+  .searchbar:focus-within { border-color: var(--accent2); }
+  .searchbar .pin { width: 17px; height: 17px; color: #ef4444; flex: none; }
+  .searchbar input { flex: 1; min-width: 0; background: 0; border: 0; color: var(--text); font: inherit; font-size: 15px; font-weight: 600; outline: none; }
+  .searchbar input::placeholder { color: var(--muted); font-weight: 500; }
+  .starbtn { border: 0; background: 0; color: var(--faint); cursor: pointer; padding: 2px; display: grid; place-items: center; }
+  .starbtn .ic { width: 18px; height: 18px; }
+  .starbtn.saved { color: var(--c-feeder); }
+  .fromrow { position: relative; display: flex; align-items: center; gap: 7px; margin: 8px 18px 0; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .fromrow .loc { width: 14px; height: 14px; color: var(--accent2); flex: none; }
+  .fromrow .lbl { color: var(--faint); }
+  .fromrow input { flex: 1; min-width: 0; background: 0; border: 0; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; outline: none; padding: 3px 0; }
+  .fromrow input::placeholder { color: var(--text); font-weight: 600; }
+  .fromrow .mini { border: 0; background: 0; color: var(--accent2); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 3px 4px; display: inline-flex; align-items: center; gap: 3px; }
+  .fromrow .swapbtn { color: var(--muted); } .fromrow .swapbtn .ic { width: 15px; height: 15px; }
+  .chiprow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 11px 18px 2px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; background: var(--panel2); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; padding: 0 10px; border-radius: 9px; white-space: nowrap; flex: none; cursor: pointer; }
+  .pill .ic { width: 14px; height: 14px; color: var(--muted); }
+  .pill .chev { width: 11px; height: 11px; color: var(--faint); margin-left: -2px; }
+  .selpill select { background: 0; border: 0; color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; padding: 0; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none; }
+  .chip.tog { display: inline-flex; align-items: center; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 700; padding: 8px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; }
+  .chip.tog input { display: none; }
+  .chip.tog:has(input:checked) { background: rgba(38,181,107,.14); border-color: rgba(38,181,107,.5); color: #6ee7a8; }
+  #whenAt { min-height: 34px; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font: inherit; font-size: 12.5px; padding: 0 9px; color-scheme: dark; flex: none; }
+  .hint:empty { display: none; }
+  .chips { gap: 6px; }
+  .chip-place { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 999px; cursor: pointer; }
+  .chip-place i { font-style: normal; color: var(--muted); } .chip-place i:hover { color: var(--text); }
+  .ic { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; flex: none; }
+  /* a trip = proportional colour ribbon + arrive/leave + a collapsible step rail */
+  .trip { padding: 12px 4px 13px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .trip:last-child { border-bottom: 0; }
+  .trip.idle { opacity: .5; }
+  .ribbon { display: flex; height: 25px; border-radius: 5px; overflow: hidden; gap: 2px; }
+  .seg { display: flex; align-items: center; justify-content: center; min-width: 16px; font-size: 12px; font-weight: 800; white-space: nowrap; padding: 0 7px; gap: 4px; overflow: hidden; transform-origin: left center; }
+  .seg .ic { width: 13px; height: 13px; }
+  .seg.walk { background: repeating-linear-gradient(115deg, #2a303a 0 5px, #222831 5px 10px); color: var(--muted); font-weight: 700; flex: 0 0 auto; }
+  .seg.ord { background: var(--c-ord); color: #06281a; } .seg.ac { background: var(--c-ac); color: #eaf2ff; } .seg.air { background: var(--c-air); color: #eef0ff; }
+  .seg.feeder { background: var(--c-feeder); color: #2a1c05; } .seg.mp { background: var(--c-mp); color: #fff; } .seg.mg { background: var(--c-mg); color: #06281a; } .seg.my { background: var(--c-my); color: #2a2405; }
+  .trip.build .seg { animation: seg-in .5s cubic-bezier(.2,.7,.2,1) backwards; }
+  @keyframes seg-in { from { transform: scaleX(.03); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
+  .facts { display: flex; align-items: baseline; margin-top: 9px; }
+  .facts .arr { font-size: 21px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .trip.hero .facts .arr { font-size: 26px; color: var(--accent); }
+  .facts .arrl { font-size: 10.5px; color: var(--faint); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin: 0 9px 0 7px; align-self: center; }
+  .facts .dur { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .facts .right { margin-left: auto; text-align: right; }
+  .facts .leave { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); transition: color .3s; }
+  .facts .leave.soon { color: var(--c-feeder); }
+  .facts .sub { font-size: 10.5px; color: var(--faint); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .tags { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .tags .fare { color: var(--text); } .tags .wk { display: inline-flex; align-items: center; gap: 4px; }
+  .tags .live { color: var(--accent); display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
+  .tags .live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .tags .x { opacity: .35; }
+  .eyebrow { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; font-weight: 800; color: var(--faint); margin: 14px 4px 7px; }
+  .eyebrow.best { color: var(--accent); }
+  .fork { margin: 9px 0 2px; padding: 9px 11px; background: var(--panel); border-left: 3px solid var(--c-mp); border-radius: 0 9px 9px 0; font-size: 12.5px; line-height: 1.45; display: flex; gap: 9px; align-items: center; }
+  .fork span { flex: 1; } .fork .ic { color: var(--c-mp); width: 16px; height: 16px; }
+  .fork .tbtn { white-space: nowrap; }
+  /* expand: ribbon -> vertical rail */
+  .detail { display: grid; grid-template-rows: 0fr; overflow: hidden; transition: grid-template-rows .34s cubic-bezier(.2,.7,.2,1); }
+  .trip.sel .detail { grid-template-rows: 1fr; margin-top: 12px; }
+  .detail > .inner { overflow: hidden; min-height: 0; }
+  .leg { display: flex; gap: 12px; }
+  .leg .track { width: 22px; flex: none; display: flex; flex-direction: column; align-items: center; }
+  .leg .track .cap { width: 22px; height: 22px; border-radius: 50%; background: var(--line); display: grid; place-items: center; color: var(--c-walk); flex: none; }
+  .leg .track .cap .ic { width: 13px; height: 13px; }
+  .leg .track .bar2 { width: 4px; flex: 1; background: var(--line2); min-height: 20px; border-radius: 2px; margin: 1px 0; }
+  .leg:last-child .track .bar2 { display: none; }
+  .leg.ord .cap, .leg.ac .cap, .leg.air .cap, .leg.feeder .cap, .leg.mg .cap, .leg.my .cap { color: #06120c; }
+  .leg.ord .cap, .leg.ord .bar2 { background: var(--c-ord); } .leg.ac .cap, .leg.ac .bar2 { background: var(--c-ac); } .leg.air .cap, .leg.air .bar2 { background: var(--c-air); } .leg.feeder .cap, .leg.feeder .bar2 { background: var(--c-feeder); }
+  .leg.mp .cap, .leg.mp .bar2 { background: var(--c-mp); } .leg.mp .cap { color: #fff; } .leg.mg .cap, .leg.mg .bar2 { background: var(--c-mg); } .leg.my .cap, .leg.my .bar2 { background: var(--c-my); }
+  .leg .info { padding: 1px 0 14px; font-size: 13px; line-height: 1.4; }
+  .leg .info .h { font-weight: 700; } .leg .info .s { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .leg .time { margin-left: auto; color: var(--muted); font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 2px; }
+  .legrow { display: flex; gap: 12px; flex: 1; }
+  .leg .tacts { padding-bottom: 4px; }
+  .maplink { display: inline-flex; align-items: center; gap: 4px; color: var(--accent2); font-size: 11.5px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .maplink .ic { width: 12px; height: 12px; }
+  .maplink:hover { text-decoration: underline; }
+  @media (prefers-reduced-motion: reduce) { .trip.build .seg { animation: none; } .detail { transition: none; } }
   /* saved places */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 18px 0; }
   .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-size: 12.5px;
@@ -156,7 +218,9 @@
   .badge { color: #0b0d10; }
   .sugg div:hover, .sugg div.active { background: #2a3040; }
   .leaflet-control-zoom a { background: var(--panel2) !important; color: var(--text) !important; border-color: var(--line) !important; }
-  .leaflet-control-attribution { background: rgba(15,17,21,.7) !important; color: var(--muted) !important; }
+  .leaflet-control-attribution { background: rgba(15,17,21,.75) !important; color: var(--muted) !important; font-size: 10px; max-width: 20px; overflow: hidden; white-space: nowrap; cursor: pointer; border-radius: 5px 0 0 0; transition: max-width .2s ease; }
+  .leaflet-control-attribution::before { content: 'ⓘ'; margin-right: 5px; color: var(--muted); }
+  .leaflet-control-attribution:hover, .leaflet-control-attribution.show { max-width: min(88vw, 520px); }
   .leaflet-control-attribution a { color: var(--muted) !important; }
   .leaflet-tooltip { background: var(--panel2); color: var(--text); border-color: var(--line); }
 
@@ -186,14 +250,15 @@
     html, body { overscroll-behavior: none; }
     #app { display: block; position: relative; height: 100dvh; }
     #map { position: absolute; inset: 0; }
-    #side { position: absolute; left: 0; right: 0; bottom: 0; height: 240px; overflow: hidden; border-right: 0; border-top: 1px solid var(--line);
+    #side { position: absolute; left: 0; right: 0; bottom: 0; height: 240px; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; border-right: 0; border-top: 1px solid var(--line);
       border-radius: 16px 16px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,.5); z-index: 1000; transition: height .25s ease; padding-bottom: env(safe-area-inset-bottom); }
     #side.dragging { transition: none; }
-    .grip { display: block; padding: 8px 0 2px; touch-action: none; cursor: grab; }
+    .grip { display: block; padding: 8px 0 2px; touch-action: none; cursor: grab; position: sticky; top: 0; background: var(--panel); z-index: 5; }
     .grip::before { content: ''; display: block; width: 36px; height: 4px; border-radius: 2px; background: #4a5162; margin: 0 auto; }
     header { padding: 2px 16px 0; touch-action: none; }
     .sub { display: none; }
-    .field, .hint, #status, .toggles, .tabs { margin-left: 16px; margin-right: 16px; }
+    .field, .hint, #status, .toggles, .tabs, .searchbar, .fromrow, .chiprow { margin-left: 16px; margin-right: 16px; }
+    .searchbar input { font-size: 16px; } .fromrow input { font-size: 15px; }
     .tabs { margin-top: 6px; }
     .chips, .when { margin-left: 16px; margin-right: 16px; }
     .when select, .when input { font-size: 16px; }
@@ -214,6 +279,20 @@
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13.6" cy="4" r="2.2" fill="currentColor"/><path d="M13.4 7.4 11.3 13.2 14.4 15.8 15.6 21" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.3 13.2 8 15.4 6.4 20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 9 16.3 10.6 18.6 9.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-bus" viewBox="0 0 24 24"><rect x="3.3" y="4.4" width="17.4" height="12" rx="3.3" fill="currentColor"/><rect x="5.4" y="6.7" width="5.7" height="4.3" rx="1.2" fill="rgba(0,0,0,.28)"/><rect x="12.9" y="6.7" width="5.7" height="4.3" rx="1.2" fill="rgba(0,0,0,.28)"/><rect x="4.2" y="12.5" width="15.6" height="1.5" rx=".75" fill="rgba(0,0,0,.22)"/><circle cx="7.6" cy="18" r="1.9" fill="currentColor"/><circle cx="16.4" cy="18" r="1.9" fill="currentColor"/></symbol>
+  <symbol id="i-metro" viewBox="0 0 24 24"><path d="M7 3.3h10a3 3 0 0 1 3 3V16a2.6 2.6 0 0 1-2.6 2.6H6.6A2.6 2.6 0 0 1 4 16V6.3a3 3 0 0 1 3-3Z" fill="currentColor"/><rect x="6.3" y="6.4" width="11.4" height="5.2" rx="1.6" fill="rgba(0,0,0,.28)"/><circle cx="8" cy="14.6" r="1.3" fill="rgba(0,0,0,.28)"/><circle cx="16" cy="14.6" r="1.3" fill="rgba(0,0,0,.28)"/><path d="M8 18.6 6.2 21M16 18.6 17.8 21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 2.5c-4 0-7 3-7 6.8 0 5 7 12.2 7 12.2s7-7.2 7-12.2c0-3.8-3-6.8-7-6.8Z" fill="currentColor"/><circle cx="12" cy="9.3" r="2.7" fill="rgba(0,0,0,.32)"/></symbol>
+  <symbol id="i-loc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="2" opacity=".45"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.2V12l3.4 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4v14M7 4 4 7M7 4l3 3M17 20V6M17 20l3-3M17 20l-3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.7l5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-starf" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.7l5.9-.9z" fill="currentColor"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-nav" viewBox="0 0 24 24"><path d="M3.2 10.6 20.4 3.6a.6.6 0 0 1 .8.8l-7 17.2a.6.6 0 0 1-1.1 0l-2.4-6.8a.6.6 0 0 0-.4-.4l-6.8-2.4a.6.6 0 0 1 0-1.1Z" fill="currentColor"/></symbol>
+  <symbol id="i-fork" viewBox="0 0 24 24"><path d="M6 21V8a3 3 0 0 1 3-3h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 2 13.5 5 10 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="21" r="1.6" fill="currentColor"/></symbol>
+</defs></svg>
 <div id="app">
   <aside id="side">
     <div class="grip" id="grip"></div>
@@ -222,34 +301,34 @@
       <div class="sub">Plan a trip or track any route. Every bus, live.</div>
     </header>
     <div class="tabs"><button id="tabTrip" class="on">Plan trip</button><button id="tabRoute">Track route</button><button id="tabNearby">Nearby</button></div>
-    <div class="field trip-only">
-      <label>From</label>
-      <input id="from" placeholder="Your location" autocomplete="off">
-      <button class="btn-loc" id="locBtn" title="Use my location">◎ Locate</button>
-      <div class="sugg" id="fromSugg"></div>
-    </div>
-    <div class="field trip-only">
-      <label>To</label>
-      <input id="to" placeholder="Where are you going?" autocomplete="off">
+    <div class="searchbar trip-only" id="toField">
+      <svg class="pin"><use href="#i-pin"/></svg>
+      <input id="to" placeholder="Where to?" autocomplete="off">
+      <button class="starbtn" id="saveStar" title="Save this place" style="display:none"><svg class="ic"><use href="#i-star"/></svg></button>
       <div class="sugg" id="toSugg"></div>
     </div>
+    <div class="fromrow trip-only">
+      <svg class="loc"><use href="#i-loc"/></svg><span class="lbl">from</span>
+      <input id="from" placeholder="My location" autocomplete="off">
+      <button class="mini" id="locBtn" title="Use my location">Locate</button>
+      <button class="mini swapbtn" id="swapBtn" title="Swap start and destination"><svg class="ic"><use href="#i-swap"/></svg></button>
+      <div class="sugg" id="fromSugg"></div>
+    </div>
     <div class="chips trip-only" id="chips"></div>
-    <div class="when trip-only">
-      <select id="whenMode"><option value="now">Leave now</option><option value="at">Leave at</option><option value="by">Arrive by</option></select>
+    <div class="chiprow trip-only">
+      <label class="pill selpill"><svg class="ic"><use href="#i-clock"/></svg><select id="whenMode"><option value="now">Leave now</option><option value="at">Leave at</option><option value="by">Arrive by</option></select><svg class="ic chev"><use href="#i-chev"/></svg></label>
       <input type="datetime-local" id="whenAt" style="display:none">
+      <label class="pill selpill"><select id="prio"><option value="fastest">Fastest</option><option value="walk">Least walking</option><option value="cheap">Cheapest</option></select><svg class="ic chev"><use href="#i-chev"/></svg></label>
+      <label class="chip tog"><input type="checkbox" id="optMetro" checked>Metro</label>
+      <label class="chip tog"><input type="checkbox" id="optTwoBus">2 buses</label>
     </div>
     <div class="field route-only">
       <label>Route</label>
       <input id="routeQ" placeholder="Route number, e.g. 500-D" autocomplete="off" autocapitalize="characters">
       <div class="sugg" id="routeSugg"></div>
     </div>
-    <div class="hint trip-only" id="hint">Tip: click the map to set the destination, shift+click to set the start.</div>
+    <div class="hint trip-only" id="hint"></div>
     <div id="status"><span class="dot" id="dot"></span><span id="statusText">Set a destination to begin</span></div>
-    <div class="toggles trip-only">
-      <label>Sort <select id="prio"><option value="fastest">Fastest</option><option value="walk">Least walking</option><option value="cheap">Cheapest</option></select></label>
-      <label><input type="checkbox" id="optMetro" checked> Metro</label>
-      <label><input type="checkbox" id="optTwoBus"> 2 buses</label>
-    </div>
     <div id="routes" class="trip-only"><div class="empty">No destination yet.<br>Search above or click on the map.</div></div>
     <div id="track" class="route-only"></div>
     <div class="toggles nearby-only">
@@ -275,6 +354,7 @@ const mq = matchMedia('(max-width: 760px)');
 
 const map = L.map('map', { zoomControl: false }).setView(BLR, 12);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
+setTimeout(() => { const a = document.querySelector('.leaflet-control-attribution'); if (a) a.addEventListener('click', e => { if (!e.target.closest('a')) a.classList.toggle('show'); }); }, 500);
 L.maplibreGL({
   style: 'https://tiles.openfreemap.org/styles/dark',
   attribution: '&copy; OpenFreeMap &copy; OpenStreetMap · Metro timetable: BMRCL via Vonter/bmrcl-gtfs (ODbL)',
@@ -432,9 +512,25 @@ setupSearch($('routeQ'), $('routeSugg'), routeSearch, it => { track.pendingFollo
 function setPoint(which, lat, lon, label) {
   state[which] = { lat, lon, label };
   if (label) $(which).value = label;
-  drawPins(); renderChips();
+  drawPins(); renderChips(); rememberTrip();
   if (state.to && state.from) plan();
   else if (state.to && !state.from) locate(true);
+}
+// remember the last trip so a refresh doesn't need re-typing (destination always; a typed start too, but not GPS)
+function rememberTrip() {
+  try {
+    saved.last = {
+      to: state.to ? { lat: state.to.lat, lon: state.to.lon, label: state.to.label } : null,
+      from: state.from && state.from.label && state.from.label !== 'My location' ? { lat: state.from.lat, lon: state.from.lon, label: state.from.label } : null,
+    };
+    persist();
+  } catch {}
+}
+function restoreTrip() {
+  const L = saved.last;
+  if (!L || !L.to) return;
+  if (L.from) { state.from = { ...L.from }; $('from').value = L.from.label; }
+  setPoint('to', L.to.lat, L.to.lon, L.to.label); // re-plans (via GPS if no typed start)
 }
 function drawPins() {
   layers.pins.clearLayers();
@@ -530,6 +626,7 @@ const BUS_MPM = 250, STATION_ENTRY = 180, METRO_TRANSFER = 240, NO_BUS_WAIT = 60
 const todayMs = () => Date.now() - istNowSecs().secs * 1000;
 const toSecs = ms => (ms - todayMs()) / 1000;
 const planned = () => state.when.mode !== 'now';
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const KIND_LABEL = { bus: 'One bus', busmetro: 'Bus + Metro', metro: 'Metro', transfer: 'Two buses' };
 const mdist = (a, b) => map.distance([a.lat, a.lon], [b.lat, b.lon]);
 const walkSecs = (a, b) => mdist(a, b) * 1.3 / 80 * 60;
@@ -804,7 +901,7 @@ async function plan() {
     state.options = prune(opts);
     computeForks(dSt[0], from, to);
     if (planned()) state.liveSince = Date.now() - SETTLE_MS; // no live data for a later time
-    scoreAll(); renderTrip(); drawTrip();
+    state.freshRender = true; scoreAll(); renderTrip(); drawTrip();
     if (!planned()) connectTrip();
     setSheet('half');
     map.fitBounds(L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]).pad(0.25), { paddingBottomRight: [0, mq.matches ? sheet.h : 0] });
@@ -838,70 +935,101 @@ function connectTrip() {
 }
 let tripT;
 function scheduleTrip() { if (!tripT) tripT = setTimeout(() => { tripT = null; if (mode === 'trip') { scoreAll(); renderTrip(); redrawTripBuses(); } }, 800); }
-setInterval(() => { if (mode === 'trip' && state.options.length) { scoreAll(); renderTrip(); } }, 30000); // metro countdowns
+setInterval(() => { if (mode === 'trip' && state.options.length) { scoreAll(); renderTrip(); } }, 30000); // metro countdowns / re-rank when idle
+setInterval(() => { // tick the live countdowns each second without rebuilding the list
+  if (mode !== 'trip' || !state.options.length || planned()) return;
+  scoreAll();
+  for (const card of document.querySelectorAll('#routes [data-opt]')) {
+    const o = state.options.find(x => x.key === card.dataset.opt); if (!o) continue;
+    const s = o.eff, lv = leaveParts(s), le = card.querySelector('.leave'), ar = card.querySelector('.arr');
+    if (le) { le.textContent = lv.big; le.classList.toggle('soon', lv.soon); }
+    if (ar && !(s.noBus && settled())) ar.textContent = fmtClock(s.arrive);
+  }
+}, 1000);
 
 // --- rendering ---
 const mins = secs => Math.max(1, Math.round(secs / 60));
 function lineChip(line) { const L2 = metro.lines[line]; return `<span class="mpill${lightLine(L2.color) ? ' light' : ''}" style="--mc:${L2.color}">${L2.name}</span>`; }
-function stripHtml(s) {
-  const parts = [];
+const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
+// a Google Maps walking link to a stop/station, so the user walks there with live directions (no in-app tracker)
+const mapsWalk = to => to && isFinite(to.lat) ? `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lon}&travelmode=walking` : null;
+function busSeg(name, tags) { const t = tags || []; if (/^MF-/i.test(name || '')) return 'feeder'; if (t.includes('Vayu Vajra')) return 'air'; if (t.includes('Vajra')) return 'ac'; return 'ord'; }
+const lineSeg = line => line === 'PURPLE' ? 'mp' : line === 'GREEN' ? 'mg' : 'my';
+function serviceLabel(tags = [], name = '') { if (tags.includes('Vayu Vajra')) return 'AC · Airport'; if (tags.includes('Vajra')) return 'AC'; if (/^MF-/i.test(name)) return 'Metro feeder'; if (tags.includes('Ordinary')) return 'Non-AC'; return ''; }
+// the proportional colour ribbon: walks keep their natural width, buses/metro grow with their minutes
+function ribbonHtml(s) {
+  const segs = [];
   for (const st of s.steps) {
     const l = st.l;
-    if (l.t === 'walk') { if (st.secs >= 60) parts.push(`🚶${mins(st.secs)}`); }
-    else if (l.t === 'bus') parts.push(`<span class="badge" style="--rc:${routeColor(l.routeId)}">${esc(l.name)}</span>`);
-    else parts.push(st.sched ? st.sched.legs.map(x => lineChip(x.line)).join('') : '🚇');
+    if (l.t === 'walk') { if (st.secs < 20) continue; const m = Math.round(st.secs / 60); segs.push(`<div class="seg walk">${icon('walk')}${m >= 1 ? m : ''}</div>`); }
+    else if (l.t === 'bus') { const m = Math.max(2, Math.round((st.ride || rideSecs(l)) / 60)); segs.push(`<div class="seg ${busSeg(l.name, l.tags)}" style="flex:${m} 1 0">${icon('bus')}${esc(l.name)}</div>`); }
+    else if (st.sched) for (const x of st.sched.legs) { const m = Math.max(2, Math.round((x.arr - x.dep) / 60)); segs.push(`<div class="seg ${lineSeg(x.line)}" style="flex:${m} 1 0">${icon('metro')}${esc(metro.lines[x.line].name)}·${Math.abs(x.j - x.i)}</div>`); }
+    else segs.push(`<div class="seg mp" style="flex:3 1 0">${icon('metro')}metro</div>`);
   }
-  return parts.join('<i class="sep">›</i>');
+  return `<div class="ribbon">${segs.join('')}</div>`;
 }
-function leaveText(s) {
-  if (planned()) {
-    if (s.noBus) return '<span class="warn">No metro at that time</span>';
-    return `Leave <b>${fmtClock(s.leaveAt)}</b>${s.late ? ` · <span class="warn">arrives after ${fmtClock(toSecs(state.when.ms))}</span>` : ''}`;
-  }
-  if (s.noBus && settled()) return '<span class="warn">No bus coming yet</span>';
-  if (!s.first) return '';
-  if (s.first.bus) { const m = Math.round(s.first.leaveIn / 60); return m <= 0 ? '<b>Leave now</b>' : `Leave in <b>${m} min</b>`; }
-  const m = Math.round(s.first.leaveIn / 60);
-  return `${m <= 0 ? '<b>Leave now</b>' : `Leave in <b>${m} min</b>`} for the <b>${fmtClock(s.first.train.dep)}</b> train`;
+function leaveParts(s) {
+  if (planned()) return { big: s.noBus ? '—' : fmtClock(s.leaveAt), sub: s.late ? 'too late' : 'leave', soon: s.late };
+  if (s.noBus && settled()) return { big: '—', sub: 'no bus', soon: false };
+  if (s.first) { const m = Math.round(s.first.leaveIn / 60); return { big: m <= 0 ? 'now' : m + ' min', sub: 'to leave', soon: s.first.leaveIn < 180 }; }
+  return { big: '…', sub: 'to leave', soon: false };
 }
 function optCard(o, hero) {
   const s = o.eff, sel = state.sel === o.key, idle = s.noBus && settled();
-  const firstBus = s.steps.find(x => x.bus)?.l;
-  const meta = [leaveText(s), `🚶 ${mins(s.walk)} min`, o.fareTotal != null ? `₹${o.fareTotal}` : '',
-    s.live ? '<span class="chip-live">● live</span>' : '', planned() ? `<span class="sched">${s.estimated ? 'estimated' : 'scheduled'}</span>` : s.metroUsed ? '<span class="sched">metro scheduled</span>' : '',
-    firstBus ? serviceTags(firstBus.tags, firstBus.name) : '', o.night ? '🌙' : ''].filter(Boolean).join(' · ');
-  return `<div class="opt${hero ? ' hero' : ''}${sel ? ' sel' : ''}${idle ? ' idle' : ''}" data-opt="${esc(o.key)}">
-    <div class="otop"><div class="ostrip">${stripHtml(s)}</div>
-      <div class="oarr"><small>Arrive</small><b>${idle ? '—' : fmtClock(s.arrive)}</b><small>${idle ? '' : mins(s.arrive - (planned() ? s.leaveAt : s.arrive - s.secs)) + ' min'}</small></div></div>
-    <div class="ometa">${meta}</div>${forkHtml(o)}${sel ? stepsHtml(o) : ''}</div>`;
+  const lv = leaveParts(s), firstBus = s.steps.find(x => x.l.t === 'bus')?.l;
+  const dur = idle ? '' : mins(planned() ? s.arrive - s.leaveAt : s.secs) + ' min';
+  const tags = [];
+  if (o.fareTotal != null) tags.push(`<span class="fare">₹${o.fareTotal}</span>`);
+  tags.push(`<span class="wk">${icon('walk')}${mins(s.walk)} min</span>`);
+  if (s.live) tags.push('<span class="live">live</span>');
+  if (planned()) tags.push(`<span>${s.estimated ? 'estimated' : 'scheduled'}</span>`);
+  else if (s.metroUsed) tags.push('<span>metro scheduled</span>');
+  const svc = firstBus ? serviceLabel(firstBus.tags, firstBus.name) : '';
+  if (svc) tags.push(`<span>${svc}</span>`);
+  if (o.night) tags.push('<span>night</span>');
+  return `<div class="trip${hero ? ' hero' : ''}${sel ? ' sel' : ''}${idle ? ' idle' : ''}${state.freshRender ? ' build' : ''}" data-opt="${esc(o.key)}">
+    ${ribbonHtml(s)}
+    <div class="facts"><span class="arr">${idle ? '—' : fmtClock(s.arrive)}</span><span class="arrl">arrive</span><span class="dur">${dur}</span>
+      <span class="right"><div class="leave${lv.soon ? ' soon' : ''}">${lv.big}</div><div class="sub">${lv.sub}</div></span></div>
+    <div class="tags">${tags.join('<span class="x">·</span>')}</div>
+    ${forkHtml(o)}
+    <div class="detail"><div class="inner">${railHtml(o)}</div></div></div>`;
 }
 function forkHtml(o) {
   if (!o.fork || !o.forkScore || !o.main) return '';
   const alt = o.useFork ? o.main : o.forkScore, cur = o.useFork ? o.forkScore : o.main;
-  // arrive-by compares when you'd have to leave; otherwise when you'd arrive
   const by = state.when.mode === 'by', diff = Math.round((by ? cur.leaveAt - alt.leaveAt : alt.arrive - cur.arrive) / 60);
-  const d = alt.noBus || cur.noBus ? '' : ` (${diff === 0 ? 'same time' : by ? (diff < 0 ? `leave ${-diff} min later` : `leave ${diff} min earlier`) : diff < 0 ? `${-diff} min sooner` : `${diff} min later`})`;
-  const what = o.useFork ? `🚌 Or stay on the bus to the end` : `🔀 Or get off at <b>${esc(o.fork.stop.name)}</b> and take ${alt.steps.find(x => x.sched)?.sched.legs.map(x => lineChip(x.line)).join('') || 'the metro'} to ${esc(o.fork.dst.name)}`;
-  return `<div class="fork"><span>${what} · arrive <b>${alt.noBus ? '—' : fmtClock(alt.arrive)}</b>${d}</span><button class="tbtn" data-branch="${esc(o.key)}">${o.useFork ? 'Stay on bus' : 'Take metro'}</button></div>`;
+  const d = alt.noBus || cur.noBus ? '' : ` · ${diff === 0 ? 'same time' : by ? (diff < 0 ? `leave ${-diff} min later` : `leave ${diff} min earlier`) : diff < 0 ? `${-diff} min sooner` : `${diff} min later`}`;
+  const lines = alt.steps.find(x => x.sched)?.sched.legs.map(x => esc(metro.lines[x.line].name) + ' line').join(' + ') || 'the metro';
+  const what = o.useFork ? 'Stay on the bus to the end' : `Get off at <b>${esc(o.fork.stop.name)}</b>, take <b>${lines}</b> to ${esc(o.fork.dst.name)}`;
+  return `<div class="fork">${icon('fork')}<span>${what} · arrive <b>${alt.noBus ? '—' : fmtClock(alt.arrive)}</b>${d}</span><button class="tbtn" data-branch="${esc(o.key)}">${o.useFork ? 'Stay on bus' : 'Take metro'}</button></div>`;
 }
-function stepsHtml(o) {
-  const s = o.eff, rows = [];
-  for (const st of s.steps) {
-    const l = st.l;
-    if (l.t === 'walk') { if (st.secs >= 30) rows.push(`<div class="step"><i>🚶</i><span>Walk ${mins(st.secs)} min to <b>${esc(l.to.name || 'your destination')}</b></span></div>`); }
-    else if (l.t === 'bus' && st.plan) rows.push(`<div class="step"><i>🚌</i><span><b>${esc(l.name)}</b> from ${esc(l.board.name)} to ${esc(l.alight.name)}<br><small>${
-      st.plan.how === 'scheduled' ? 'Scheduled' : 'Estimated'} ${fmtClock(st.plan.dep)} → ${fmtClock(st.plan.arr)} · ride ${mins(st.ride)} min${st.wait > 90 ? ` · wait ~${mins(st.wait)} min` : ''}</small></span></div>`);
-    else if (l.t === 'bus') rows.push(`<div class="step"><i>🚌</i><span><b>${esc(l.name)}</b> from ${esc(l.board.name)} to ${esc(l.alight.name)}<br><small>${st.none
-      ? 'No live bus coming yet'
-      : `${esc(st.bus.vNo || 'Bus')} reaches your stop in ${fmtEta(st.bus.eb)} (wait ${mins(Math.max(0, st.wait))} min) · ride ${mins(st.ride)} min${st.bus.liveRide ? ' (live)' : ' (estimated)'}`}</small></span></div>`);
-    else if (st.sched) for (const [k, x] of st.sched.legs.entries()) {
-      const L2 = metro.lines[x.line], name = i => L2.stations[i][1];
-      rows.push(`<div class="step"><i>🚇</i><span>${k ? 'Change to ' : ''}${lineChip(x.line)} ${esc(name(x.i))} <b>${fmtClock(x.dep)}</b> → ${esc(name(x.j))} <b>${fmtClock(x.arr)}</b><br><small>scheduled · ${Math.abs(x.j - x.i)} stops</small></span></div>`);
-    } else rows.push(`<div class="step"><i>🚇</i><span class="warn">No metro train within the hour (service has ended for tonight)</span></div>`);
-  }
+function legRow(cls, ic, h, sub, time) {
+  return `<div class="leg ${cls}"><div class="track"><span class="cap">${icon(ic)}</span><span class="bar2"></span></div>` +
+    `<div class="legrow"><div class="info"><div class="h">${h}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>${time ? `<div class="time">${time}</div>` : ''}</div></div>`;
+}
+function railHtml(o) {
+  const s = o.eff, rows = [], n = s.steps.length;
+  s.steps.forEach((st, i) => {
+    const l = st.l, last = i === n - 1;
+    if (l.t === 'walk') {
+      if (st.secs < 30 && i > 0 && !last) return;
+      const url = mapsWalk(l.to), dir = url ? `<a class="maplink" href="${url}" target="_blank" rel="noopener">${icon('nav')}Directions</a>` : '';
+      rows.push(legRow('', last ? 'pin' : 'walk', `Walk ${mins(st.secs)} min${l.to?.name ? ` to <b>${esc(l.to.name)}</b>` : ''}`, '', dir));
+    } else if (l.t === 'bus') {
+      let sub, time = '';
+      if (st.plan) { sub = `${st.plan.how === 'scheduled' ? 'Scheduled' : 'Estimated'} · ride ${mins(st.ride)} min${st.wait > 90 ? ` · wait ~${mins(st.wait)} min` : ''}`; time = `${fmtClock(st.plan.dep)}–${fmtClock(st.plan.arr)}`; }
+      else if (st.none) sub = 'No live bus coming yet';
+      else sub = `${esc(st.bus.vNo || 'Bus')} in ${fmtEta(st.bus.eb)} · ride ${mins(st.ride)} min${st.bus.liveRide ? ' · live' : ''}`;
+      rows.push(legRow(busSeg(l.name, l.tags), 'bus', `Bus ${esc(l.name)} · to ${esc(l.alight.name)}`, sub, time));
+    } else if (st.sched) {
+      st.sched.legs.forEach((x, k) => { const L2 = metro.lines[x.line];
+        rows.push(legRow(lineSeg(x.line), 'metro', `${k ? 'Change · ' : ''}${esc(L2.name)} line · to ${esc(L2.stations[x.j][1])}`, `${Math.abs(x.j - x.i)} stops · scheduled`, `${fmtClock(x.dep)}–${fmtClock(x.arr)}`)); });
+    } else rows.push(legRow('', 'metro', 'Metro', '<span class="warn">No train within the hour — service has ended for tonight</span>', ''));
+  });
   const fb = s.steps.find(x => x.l.t === 'bus')?.l;
-  const acts = fb && !planned() ? `<div class="tacts"><button class="tbtn" data-notify="${esc(o.key)}">🔔 Notify me</button>${s.first?.bus ? `<button class="tbtn" data-track="${esc(o.key)}">Track this bus</button>` : ''}</div>` : '';
-  return `<div class="steps">${rows.join('')}${acts}</div>`;
+  const acts = fb && !planned() ? `<div class="leg"><div class="track"></div><div class="tacts"><button class="tbtn" data-notify="${esc(o.key)}">Notify me</button>${s.first?.bus ? `<button class="tbtn" data-track="${esc(o.key)}">Track this bus</button>` : ''}</div></div>` : '';
+  return rows.join('') + acts;
 }
 function renderTrip() {
   if (mode !== 'trip') return;
@@ -915,7 +1043,7 @@ function renderTrip() {
   const w = state.when, whenTxt = w.mode !== 'now' && new Date(w.ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   if (w.mode !== 'now') html += `<div class="thead">Planned for ${w.mode === 'by' ? 'arriving by' : 'leaving at'} <b>${whenTxt}</b> · timetable times, not live</div>`;
   const hero = shown[0];
-  if (hero) html += `<div class="herohead">${w.mode === 'by' ? 'Leave latest' : w.mode === 'at' ? 'Best way then' : 'Best way right now'}</div>` + optCard(hero, true);
+  if (hero) html += `<div class="eyebrow best">${w.mode === 'by' ? 'Leave latest' : w.mode === 'at' ? 'Best way then' : 'Best way right now'}</div>` + optCard(hero, true);
   for (const kind of ['bus', 'busmetro', 'metro', 'transfer']) {
     const list = shown.filter(o => o !== hero && o.kind === kind).slice(0, kind === 'bus' ? 6 : 4);
     if (list.length) html += `<div class="ghead">${KIND_LABEL[kind]}</div>` + list.map(o => optCard(o, false)).join('');
@@ -925,13 +1053,18 @@ function renderTrip() {
     const hidden = state.options.filter(o => o.kind === 'transfer').length;
     html += `<div class="empty">${!saved.prefs.twoBus && hidden ? `Every way there needs 2 buses (${hidden} found).<br>Tick <b>2 buses</b> above to see them.` : 'No options match your settings. Try allowing metro or 2 buses.'}</div>`;
   }
+  // FLIP: remember where each card was, so a re-rank slides instead of jumping
+  const prev = new Map(); if (!state.freshRender) for (const c of el.querySelectorAll('[data-opt]')) prev.set(c.dataset.opt, c.getBoundingClientRect().top);
   el.innerHTML = html;
+  if (!reduceMotion) for (const c of el.querySelectorAll('[data-opt]')) { const was = prev.get(c.dataset.opt); if (was != null) { const dy = was - c.getBoundingClientRect().top; if (Math.abs(dy) > 2 && c.animate) c.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.2,.7,.2,1)' }); } }
+  state.freshRender = false;
   const best = hero && !hero.eff.noBus ? ` · best arrives <b style="color:var(--text)">${fmtClock(hero.eff.arrive)}</b>` : '';
   if (w.mode !== 'now') return setStatus(`<b style="color:var(--text)">${shown.length}</b> ways · ${w.mode === 'by' ? 'arrive by' : 'leave at'} ${whenTxt}${hero && !hero.eff.noBus ? ` · leave <b style="color:var(--text)">${fmtClock(hero.eff.leaveAt)}</b>` : ''}`);
-  setStatus(`<b style="color:var(--text)">${shown.length}</b> ways to get there${best}${ready ? ' · live' : ''}${state.night ? ' · 🌙' : ''}`, ready ? 'live' : 'loading');
+  setStatus(`<b style="color:var(--text)">${shown.length}</b> ways to get there${best}${ready ? ' · live' : ''}${state.night ? ' · night' : ''}`, ready ? 'live' : 'loading');
 }
 $('routes').addEventListener('click', e => {
   const t = e.target;
+  if (t.closest('.maplink')) return; // let the Google Maps link open, don't collapse the card
   if (t.closest('#showIdle')) { state.showIdle = true; renderTrip(); return; }
   const find = el => state.options.find(o => o.key === el.closest('[data-opt]')?.dataset.opt);
   const br = t.closest('[data-branch]');
@@ -945,8 +1078,13 @@ $('routes').addEventListener('click', e => {
   if (tr) { const o = find(tr), st = o.eff.steps.find(x => x.bus); return st && trackBus(st.l.routeId, st.bus.key); }
   const card = t.closest('[data-opt]');
   if (!card) return;
-  state.sel = state.sel === card.dataset.opt ? null : card.dataset.opt;
+  const opening = state.sel !== card.dataset.opt;
+  state.sel = opening ? card.dataset.opt : null;
   renderTrip(); drawTrip();
+  if (opening && !reduceMotion) { // reveal the step rail
+    const d = [...document.querySelectorAll('#routes [data-opt]')].find(c => c.dataset.opt === state.sel)?.querySelector('.detail');
+    if (d && d.animate) { const h = d.querySelector('.inner').scrollHeight; d.animate([{ maxHeight: '0px', opacity: .4 }, { maxHeight: h + 'px', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.7,.2,1)' }); }
+  }
   const o = state.options.find(x => x.key === state.sel);
   if (o) { const pts = drawnPoints(o); if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.15), { paddingBottomRight: [0, mq.matches ? sheet.h : 0] }); }
 });
@@ -1012,23 +1150,36 @@ function redrawTripBuses() {
 }
 
 // --- saved places: chips under "To" ---
+function savedIdx() { const to = state.to; return to ? saved.places.findIndex(p => Math.abs(p.lat - to.lat) < 1e-4 && Math.abs(p.lon - to.lon) < 1e-4) : -1; }
 function renderChips() {
-  const to = state.to, isSaved = to && saved.places.some(p => Math.abs(p.lat - to.lat) < 1e-4 && Math.abs(p.lon - to.lon) < 1e-4);
-  $('chips').innerHTML = saved.places.map((p, i) => `<button class="chip" data-place="${i}">${esc(p.name)}<i data-del="${i}" title="Remove">✕</i></button>`).join('') +
-    (to && !isSaved ? '<button class="chip add" id="savePlace">☆ Save destination</button>' : '');
+  // when there's no destination yet, offer the saved places as quick chips
+  $('chips').innerHTML = state.to ? '' : saved.places.map((p, i) => `<button class="chip-place" data-place="${i}">${esc(p.name)}<i data-del="${i}" title="Remove">✕</i></button>`).join('');
+  const star = $('saveStar'); if (star) { const on = savedIdx() >= 0; star.style.display = state.to ? '' : 'none'; star.classList.toggle('saved', on); star.firstElementChild.firstElementChild.setAttribute('href', on ? '#i-starf' : '#i-star'); star.title = on ? 'Saved — tap to remove' : 'Save this place'; }
 }
 $('chips').addEventListener('click', e => {
   const del = e.target.closest('[data-del]');
   if (del) { saved.places.splice(+del.dataset.del, 1); persist(); return renderChips(); }
   const c = e.target.closest('[data-place]');
   if (c) { const p = saved.places[+c.dataset.place]; return setPoint('to', p.lat, p.lon, p.name); }
-  if (e.target.closest('#savePlace') && state.to) {
-    const names = saved.places.map(p => p.name.toLowerCase());
-    const guess = !names.includes('home') ? 'Home' : !names.includes('work') ? 'Work' : state.to.label;
-    const name = (prompt('Name this place (e.g. Home, Work, College)', guess) || '').trim();
-    if (name) { saved.places.push({ name: name.slice(0, 30), lat: state.to.lat, lon: state.to.lon }); persist(); renderChips(); toast(`Saved "${esc(name)}". Tap it any time to plan from where you are.`); }
-  }
 });
+// star: save (or un-save) the current destination
+$('saveStar').onclick = () => {
+  if (!state.to) return;
+  const i = savedIdx();
+  if (i >= 0) { const nm = saved.places[i].name; saved.places.splice(i, 1); persist(); renderChips(); return toast(`Removed "${esc(nm)}".`); }
+  const names = saved.places.map(p => p.name.toLowerCase());
+  const guess = !names.includes('home') ? 'Home' : !names.includes('work') ? 'Work' : state.to.label;
+  const name = (prompt('Name this place (e.g. Home, Work, College)', guess) || '').trim();
+  if (name) { saved.places.push({ name: name.slice(0, 30), lat: state.to.lat, lon: state.to.lon }); persist(); renderChips(); toast(`Saved "${esc(name)}". Tap it any time to plan from where you are.`); }
+};
+// swap start and destination
+$('swapBtn').onclick = () => {
+  const f = state.from, t = state.to;
+  state.from = t; state.to = f;
+  $('from').value = t && t.label ? t.label : ''; $('to').value = f && f.label ? f.label : '';
+  drawPins(); renderChips();
+  if (state.from && state.to) plan();
+};
 
 function fmtEta(s) {
   if (s == null) return null;
@@ -1757,9 +1908,10 @@ if (matchMedia('(pointer: coarse)').matches) $('hint').textContent = 'Tip: tap t
 setSheet('peek');
 
 const hashRoute = location.hash.match(/route=([\w-]+)/)?.[1];
-if (hashRoute) { track.route = { routeId: hashRoute }; setMode('route'); }
 startWatch(); // show where you are from the start, in every tab
 renderChips();
+if (hashRoute) { track.route = { routeId: hashRoute }; setMode('route'); }
+else restoreTrip(); // bring back the last destination on refresh
 </script>
 </body>
 </html>
