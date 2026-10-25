@@ -101,6 +101,9 @@ export async function plan(q) {
         walkToBoard: k === 0 ? Math.round(walkStart / WALK_SPEED) : null,
         walkFromAlight: k === busLegs.length - 1 ? Math.round(walkEnd / WALK_SPEED) : null,
         walkTotal: Math.round(walkTotal / WALK_SPEED),
+        // fares come per leg (fares[].leg_index points into it.legs) plus a total for the whole itinerary
+        fare: (it.fares || []).find(f => (f.leg_index || []).includes(legs.indexOf(l)))?.default_fare ?? null,
+        totalFare: it.total_fare ?? null,
       });
     }
   }

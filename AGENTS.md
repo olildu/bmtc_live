@@ -12,6 +12,8 @@ Live: https://bmtc-live.pages.dev (Cloudflare Pages project `bmtc-live`).
 | `functions/api/plan.js` | Cloudflare Pages Function, `GET /api/plan?flat&flon&tlat&tlon`. Calls Chalo's trip planner, keeps the bus legs, adds each route's stop list, and returns `[{routeId, name, direct, board, alight, stops[], travelTime, tags}]`. |
 | `functions/api/route.js` | `GET /api/route?q=<route number>` searches routes (both directions). `GET /api/route?id=<routeId>` returns `{name, from, to, tags, polyline, stops[]}`. Used by the "Track a route" tab. |
 | `functions/api/nearby.js` | `GET /api/nearby?lat&lon` returns the routes that board within 1.5 km, with headsign and boarding stop. It plans trips to 16 hubs in parallel because Chalo has no working buses-near-a-point call for BMTC. Used by the "Nearby" tab. |
+| `scripts/metro.py` | Builds `public/metro.json` (Namma Metro lines, stations, scheduled trips, fares) from the unofficial [Vonter/bmrcl-gtfs](https://github.com/Vonter/bmrcl-gtfs) feed (ODbL; attribution is on the map). Standard library only. |
+| `public/metro.json` | Generated, about 57 KB. Times are **scheduled**, not live: Chalo has the metro lines but no live or timetable data. |
 | `server.js` | Local dev server. Serves `public/` and runs the same `plan.js`. No dependencies. |
 | `reverse-engineering/FINDINGS.md` | **Read this before touching anything API-related.** Every endpoint, header, param quirk and socket protocol detail, plus what failed. |
 | `reverse-engineering/apk/` | The original split APK pulled from a phone. |
@@ -32,11 +34,20 @@ The second tab searches a route number, draws the whole route along its road sha
 
 The page watches GPS from load in every tab, and the map has a "my location" button. The Nearby tab calls `/api/nearby` with your position, subscribes to `routes:` and `etas:<stop>:<route>` for every route found, and shows buses within the chosen radius (500 m, 1 km or 2 km) sorted by distance. It reloads if you move 400 m, and reuses the last route lookup for 5 minutes. Tapping a bus stays in Nearby: it draws that bus's route, fades the other buses, and lists its upcoming stops with ETAs. Your nearby stop is marked. "← All nearby buses" or tapping the map goes back. "Open in Track route" is optional. In Track route, the stop nearest to you is marked "your stop", with walk time and the next bus's ETA.
 
-## Commands
+## Alerts, saved places, metro and stop view
+
+- **Alerts** (`alerts` in the page): "Notify me" on trip cards, Track route's followed bus and your stop, Nearby buses and stop-view rows. Live alerts open their **own** socket for `etas:<stop>:<route>`, so they survive tab switches. They fire within N min (2, 5 or 10, set in the 🔔 pill) with a toast, vibration, beep and Notification. Metro "Remind me" uses a timer against the scheduled time. The page must stay open; there's no push backend.
+- **Saved** (`localStorage['bmtc.saved']`): place chips under "To" and favourite routes (☆ in Track route; listed when the Track tab is empty).
+- **Nearby back stack** (`near.stack`): tapping opens a bus (route + next stops), a stop (everything arriving, via `/api/nearby?r=300`), a metro station (next scheduled trains each way) or a metro train (scheduled timeline with fares). "← Back" pops one level, and tapping the map clears it. `syncNearRefs()` diffs the socket subscriptions against what the open views need.
+- **Fares**: `plan.js` adds `fare` (per bus leg) and `totalFare` from the planner's `fares[].leg_index`.
+- **Service type**: `serviceTags()` maps Chalo tags (Vajra → AC, Vayu Vajra → AC · Airport, Ordinary → Non-AC, `MF-` → Metro feeder). BMTC sends **no crowding/occupancy data**.
+
+
 
 ```
 node server.js                                                          # local, http://localhost:3000
 npx wrangler pages deploy public --project-name bmtc-live --branch main # deploy (wrangler picks up functions/)
+python3 scripts/metro.py                                                # refresh public/metro.json from the metro GTFS
 ```
 
 There are no tests or build step. To check page JS syntax:

@@ -83,12 +83,19 @@ Code: `app/chalo/livetracking/frameworklivetracking/` (`RealTimeSocketManagerImp
 | `etas:<stopId>:<routeId>` | every bus's ETA to that stop | `eta` (**seconds**, `-1` means already passed), `dist` (m), `vNo`, `rN` (route name, e.g. `V-335E`), `dest`, `isHalted`, `tS` |
 | `etasList` | polled batch form: `{ref:'etasList', etasList:['etas:<stop>:<route>', …]}` | same as `etas` |
 
+### Fares and service type
+Each trip-planner itinerary has `total_fare` and `fares[{leg_index:[i], default_fare}]`, where `leg_index` points into `legs`. Service type comes from `displayTags` / `spf`: `Ordinary`, `Vajra` (AC) or `Vayu Vajra` (AC airport).
+
+## Metro (Namma Metro)
+Chalo has the metro lines as routes. `search?str=purple` returns `Purple line (West-East Corridor)` (`hJctbMVG`) and others with `transport_type: metro`, and `nearby/stops?transitMode=metro` returns stations. But `routedetails` says `isLive: false` with empty `trips` and `timings`, and the socket sends nothing for `routes:<metroRouteId>` or `etas:<station>:<metroRouteId>`. **There's no live metro data in Chalo.** The site uses the unofficial Vonter/bmrcl-gtfs timetable (`scripts/metro.py`) and labels times "scheduled".
+
 ## What did NOT work (and still open)
 
 - `GET /scheduler_v4/v4/<city>/summary` (stop summary used by the stop screen) always returned `NO_TRIPS_FOR_ANY_STOPS_NEARBY` or a 500, whatever params I tried. The app sends `lat, lon, time, day, radius, cards` (from `LocationSummaryRequestDataHolder`). Seconds since midnight for `time` gives `NO_TRIPS_FOR_ANY_STOPS_NEARBY`, and epoch ms gives a 500.
 - `POST https://geoquery.zophop.com/nearbybus/v2/city/BENGALURU`, body `{"metaData":{"locale":"en","appVer":"1001","userId":"x"},"requiredFields":{"nearbyBuses":{"lat":..,"lng":..,"radius":..}}}`, answers 200 with `{"buses":[]}` for any radius, even while BMTC buses are live. Its response fields (`_operatorId`, `_mode`, `_streamId`) suggest it covers Chalo's own buses only. The website's "Nearby" tab works around this with `/api/nearby`, which plans trips to the city's hubs and keeps the routes that board close by.
 - `GET /scheduler_v4/v4/<city>/stops/id?mode=…` (full city stop list) returned 500 for every casing and mode combination.
 - `POST /scheduler_v4/v5/<city>/routedetails` (bulk route sync, body `{meta, routeIdsToVersionMap, location:{lat,lng}}`) returned 500.
+- The live vehicle payload has no occupancy or crowding fields (`vNo, _latitude, _longitude, bearing, sId, psId, psTime, lSId, eta, opId, tS`), and search results carry no `seatOccupancy` for BMTC.
 - **Not found yet: "all routes that serve a given stop".** (The search endpoint above turns a place name into stop IDs, which is one half of it.) That would allow a destination-only mode (every bus going to X, from anywhere). Candidates not yet tested: `scheduler_v4/v1/{city}/routes/corridors`, `scheduler_v4/v6/{CITY}/tripplanner/bus-wise`, `scheduler_v4/v5/{CITY}/routesbetweenstops`.
 
 ## Other endpoint paths seen in the code (untested)
