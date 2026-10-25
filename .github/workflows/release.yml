@@ -1,0 +1,46 @@
+name: Release
+
+# Builds the Docker image and pushes it to GHCR on version tags only (same pattern as linkup-backend).
+# Ordinary pushes to main do NOT deploy. Release with:  git tag v1.2.3 && git push origin v1.2.3
+# On oci-arm, Watchtower sees the new :latest within about a minute and recreates the bmtc-live container.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false # the APKs under reverse-engineering/ aren't needed for the image
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # oci-arm is aarch64; amd64 keeps the image usable elsewhere
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+          tags: |
+            ghcr.io/olildu/bmtc-live:${{ github.ref_name }}
+            ghcr.io/olildu/bmtc-live:latest

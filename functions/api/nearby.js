@@ -2,7 +2,7 @@
 // Chalo has no working "buses near a point" call for BMTC (geoquery's nearbybus returns nothing, /summary returns
 // NO_TRIPS_FOR_ANY_STOPS_NEARBY). So: plan trips from the point to the city's main hubs and keep every route that
 // boards close by. Returns [{routeId, name, towards, tags, stop, d}] nearest stop first; the page subscribes to them live.
-import { istNow, tripPlans, legStop, dist } from './plan.js';
+import { istNow, istTomorrow9, tripPlans, legStop, dist } from './plan.js';
 
 const MAX_STOP_DIST = 1500; // default and maximum m from the point to the boarding stop; the stop view asks for ~300
 const HUBS = [
@@ -29,10 +29,14 @@ export async function onRequestGet({ request }) {
   const p = { lat: parseFloat(q.get('lat')), lon: parseFloat(q.get('lon')) };
   if (!isFinite(p.lat) || !isFinite(p.lon)) return Response.json({ error: 'missing lat/lon' }, { status: 400 });
   const maxDist = Math.min(MAX_STOP_DIST, Math.max(150, parseFloat(q.get('r')) || MAX_STOP_DIST));
-  const { secs, day } = istNow();
   const targets = HUBS.map(([lat, lon]) => ({ lat, lon })).filter(h => dist(p, h) > 1500);
-  const results = await Promise.allSettled(targets.map(t => tripPlans(p, t, secs, day, 8000)));
+  const pass = when => Promise.allSettled(targets.map(t => tripPlans(p, t, when, 8000)));
+  let results = await pass(istNow());
   if (results.every(r => r.status === 'rejected')) return Response.json({ error: String(results[0].reason?.message || results[0].reason) }, { status: 502 });
+  // late at night the planner has little or nothing for "now"; tomorrow 09:00 still tells us which routes run here
+  // (2 x 16 calls). The page only ever shows buses that are live inside the radius, so extra routes cost nothing.
+  const found = new Set(results.flatMap(r => r.status === 'fulfilled' ? r.value : []).flatMap(it => (it.legs || []).filter(l => l.mode === 'BUS').map(l => l.route_id)));
+  if (found.size < 5) results = [...results, ...await pass(istTomorrow9())];
   const routes = new Map();
   for (const it of results.flatMap(r => r.status === 'fulfilled' ? r.value : [])) {
     for (const l of it.legs || []) {

@@ -1,0 +1,12 @@
+# Runs on oci-arm from ~/dev/bmtc-live:  sudo docker compose -f docker-compose.prod.yml up -d
+# No .env needed (the app has no secrets). Updates are automatic: linkup-backend's Watchtower on this host runs with
+# --label-enable and recreates any labelled container when a new :latest is pushed to GHCR.
+services:
+  bmtc-live:
+    image: ghcr.io/olildu/bmtc-live:latest
+    restart: unless-stopped
+    ports:
+      # The Cloudflare Tunnel routes bmtc.olildu.dpdns.org to host port 8010 (/etc/cloudflared/config.yml).
+      - "8010:3000"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

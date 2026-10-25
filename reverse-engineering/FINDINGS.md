@@ -51,6 +51,12 @@ City casing matters: `BENGALURU` (upper) for v4 `routedetails` and v5/v6 trip pl
 
 → `payload.itineraries[].legs[]`. A leg with `mode: "BUS"` has `route_id`, `trip_id`, `first_stop` and `last_stop` (each with `stop_id`, `stop_name`, `stop_lat`, `stop_lon`), `travel_time` (s), `displayTags` (e.g. `Vajra`, `Ordinary`) and `polyline`. Walk legs have `mode: "WALK"`.
 
+**Late at night the planner returns nothing** (from about 23:00 IST, for every pair tried), because it plans from the timetable for "leaving now". Planning for **tomorrow 09:00** still returns the routes, but `startTimeMillis` must be tomorrow 09:00 too: "today 09:00" sent with the current time returns nothing.
+
+### Routes between two stops (works at night)
+`GET /scheduler_v4/v5/BENGALURU/routesbetweenstops?fromStopId=<id>&toStopId=<id>&mTicketEnabled=true` (params from `RouteSelectionRepositoryImpl`)
+→ `[{routeId, routeName, spf, serviceCategory, fromStop{id,name,lat,lon}, toStop{…}, firstStop, lastStop}]`. Direct routes only, and it doesn't depend on the time of day. Stops are matched by **name**: asking for one Silk Board stop returned routes from another. A 6×6 or 10×10 search over nearby stops takes about 1 s. Browsers can't call it directly (CORS preflight returns 403).
+
 ### Route details
 `GET /scheduler_v4/v4/BENGALURU/routedetails?route_id=3xUwYVHP&day=thu`
 → `route.{route_id, serviceCategory, last_stop, stopSequenceWithDetails[]}`. Stops are in travel order, each with `stop_id`, `stop_name`, `stop_lat` and `stop_lon`.

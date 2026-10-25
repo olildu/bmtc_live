@@ -57,6 +57,10 @@
   .map-btn.on { color: #4285f4; }
   .tag.ac { color: #22d3ee; border-color: rgba(34,211,238,.4); }
   .tag.fare { color: var(--text); }
+  .nightbar { margin: 6px 6px 2px; padding: 10px 12px; border-radius: 10px; background: #1b2236; border: 1px solid #2c3858; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+  .nightbar small { color: var(--muted); }
+  .idle-toggle { margin: 6px; width: calc(100% - 12px); border: 1px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; padding: 9px; border-radius: 10px; cursor: pointer; }
+  .warn { color: var(--warn); }
   /* saved places */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 18px 0; }
   .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-size: 12.5px;
@@ -498,6 +502,21 @@ async function plan() {
     const r = await fetch(`/api/plan?flat=${from.lat}&flon=${from.lon}&tlat=${to.lat}&tlon=${to.lon}`);
     const data = await r.json();
     if (!r.ok) throw new Error(data.error);
+    // Night mode: the planner had little or nothing for "now", so /api/plan added routes planned for tomorrow morning
+    // (flagged `night`). Add direct routes between nearby stops too, then show only those with a bus running.
+    state.night = data.some(rt => rt.night);
+    state.showIdle = false;
+    if (state.night) {
+      const direct = await (await fetch(`/api/direct?flat=${from.lat}&flon=${from.lon}&tlat=${to.lat}&tlon=${to.lon}`)).json().catch(() => []);
+      const have = new Set(data.map(rt => rt.routeId));
+      const extra = await Promise.all((Array.isArray(direct) ? direct : []).filter(d => !have.has(d.routeId)).slice(0, 12).map(async d => {
+        const det = await (await fetch(`/api/route?id=${encodeURIComponent(d.routeId)}`)).json().catch(() => ({}));
+        return { ...d, stops: det.stops || [], tags: d.tags?.length ? d.tags : det.tags || [], connects: [], night: true };
+      }));
+      data.push(...extra);
+      data.sort((a, b) => (b.direct - a.direct) || ((a.walkTotal ?? 99) - (b.walkTotal ?? 99)));
+    }
+    if (mode !== 'trip' || state.from !== from || state.to !== to) return;
     state.routes = data.map((rt, i) => {
       const idx = new Map(rt.stops.map((s, k) => [s.id, k]));
       return { ...rt, color: COLORS[i % COLORS.length], idx, boardIdx: rt.board ? idx.get(rt.board.id) : undefined };
@@ -513,18 +532,39 @@ async function plan() {
   }
 }
 
-function visibleRoutes() {
+// routes passing the Direct only / Walk up to filters; visibleRoutes() also hides night routes with nothing running
+function filteredRoutes() {
   const maxWalk = +$('maxWalk').value;
   return state.routes.filter(r => (!$('onlyDirect').checked || r.direct) && !(r.walkTotal > maxWalk));
 }
+function visibleRoutes() { return filteredRoutes().filter(r => state.showIdle || !idleAtNight(r)); }
+// night mode: give the live snapshot a few seconds before deciding a route has nothing running
+const nightSettled = () => state.night && state.liveSince && Date.now() - state.liveSince > 6000;
+const liveOn = routeId => [...state.vehicles.values()].some(v => v.routeId === routeId);
+const idleAtNight = r => r.night && nightSettled() && !busesFor(r).some(v => !v.passed);
+// rank in night mode: a bus coming to your stop, then any live bus, then nothing
+function nightRank(r) {
+  const buses = busesFor(r), next = buses.filter(v => !v.passed && v.etaToStop != null).sort((a, b) => a.etaToStop - b.etaToStop)[0];
+  return next ? next.etaToStop : buses.some(v => !v.passed) ? 1e6 : buses.length ? 2e6 : 3e6;
+}
 
 function renderRoutes() {
-  const list = visibleRoutes();
+  let list = visibleRoutes();
+  const idle = state.night && !state.showIdle ? filteredRoutes().filter(idleAtNight).length : 0;
+  let banner = '';
+  if (state.night) {
+    if (nightSettled()) list = list.slice().sort((a, b) => nightRank(a) - nightRank(b));
+    const running = list.some(r => busesFor(r).some(v => !v.passed));
+    banner = `<div class="nightbar">🌙 <b>Few or no scheduled trips right now.</b> Showing routes with buses still running.${
+      nightSettled() && !running ? '<br><span class="warn">Nothing is heading your way on these routes right now. Try again in the morning.</span>' : ''}<br>
+      <small>Night routes come from tomorrow's timetable; only buses that are live right now are shown.</small></div>`;
+  }
+  const more = idle ? `<button class="idle-toggle" id="showIdle">${idle} more route${idle === 1 ? '' : 's'} with no bus running now · show</button>` : '';
   if (!list.length) {
-    $('routes').innerHTML = `<div class="empty">${state.routes.length ? 'No routes match these filters.<br>Try allowing a longer walk.' : 'No bus routes found between these points right now.'}</div>`;
+    $('routes').innerHTML = banner + (state.night && !nightSettled() ? '<div class="empty">Checking which buses are still running…</div>' : `<div class="empty">${state.routes.length ? 'No routes match these filters.<br>Try allowing a longer walk.' : 'No bus routes found between these points right now.'}</div>`) + more;
     return;
   }
-  $('routes').innerHTML = list.map(r => {
+  $('routes').innerHTML = banner + list.map(r => {
     const buses = busesFor(r);
     const coming = buses.filter(v => !v.passed);
     const rows = buses.sort((a, b) => etaSort(a) - etaSort(b)).slice(0, 8).map(v =>
@@ -538,13 +578,16 @@ function renderRoutes() {
         ${r.fare != null ? `<span class="tag fare">₹${r.fare}</span>` : ''}
         ${serviceTags(r.tags, r.name)}
         <span class="live-count">${next ? `next in <b>${fmtEta(next.etaToStop)}</b>` : `<b>${coming.length}</b> coming`}</span></div>
-      <div class="rstops">${r.walkToBoard != null ? `Walk ${r.walkToBoard} min to` : 'Board at'} <b>${r.board?.name || '?'}</b><br>Get off at <b>${r.alight?.name || '?'}</b>${r.travelTime ? ` · ~${Math.round(r.travelTime / 60)} min ride` : ''}${r.walkFromAlight ? `, then walk ${r.walkFromAlight} min` : ''}${!r.direct && r.totalFare != null ? `<br>₹${r.totalFare} for the whole trip` : ''}</div>
+      <div class="rstops">${r.walkToBoard != null ? `Walk ${r.walkToBoard} min to` : 'Board at'} <b>${r.board?.name || '?'}</b><br>Get off at <b>${r.alight?.name || '?'}</b>${r.travelTime ? ` · ~${Math.round(r.travelTime / 60)} min ride` : ''}${r.walkFromAlight ? `, then walk ${r.walkFromAlight} min` : ''}${!r.direct && r.totalFare != null ? `<br>₹${r.totalFare} for the whole trip` : ''}${
+        !r.direct && r.connects?.length && (state.night ? nightSettled() : state.liveSince && Date.now() - state.liveSince > 6000) && !r.connects.some(c => liveOn(c.routeId))
+          ? `<br><span class="warn">⚠ No bus running on the connecting route${r.connects.length > 1 ? 's' : ''} (${r.connects.map(c => esc(c.name)).join(', ')}) right now.</span>` : ''}</div>
       <div class="buses">${rows || '<div class="bus"><span>No live buses yet</span><span></span></div>'}
         ${r.board ? `<div class="tacts"><button class="tbtn" data-notify="${r.routeId}">🔔 Notify me before the next bus reaches ${esc(r.board.name)}</button></div>` : ''}</div>
     </div>`;
-  }).join('');
+  }).join('') + more;
 }
 $('routes').addEventListener('click', e => {
+  if (e.target.closest('#showIdle')) { state.showIdle = true; renderRoutes(); drawRoutes(); redrawBuses(); return; }
   const n = e.target.closest('[data-notify]');
   if (n) {
     const r = state.routes.find(x => x.routeId === n.dataset.notify);
@@ -629,13 +672,23 @@ function connectLive() {
   // Chalo's live socket (Socket.IO v2). refs: 'routes:<routeId>' = bus positions,
   // 'etas:<stopId>:<routeId>' = seconds until each bus reaches that stop (-1 = passed).
   const refs = state.routes.flatMap(r => ['routes:' + r.routeId, ...(r.board ? [`etas:${r.board.id}:${r.routeId}`] : [])]);
-  state.es = liveSocket(refs, (parts, key, d) => {
+  // connecting legs of transfers that aren't listed themselves: positions only, to tell whether they're running
+  const listed = new Set(ids);
+  for (const r of state.routes) for (const c of r.connects || []) if (!listed.has(c.routeId)) { listed.add(c.routeId); refs.push('routes:' + c.routeId); }
+  state.liveSince = null;
+  const es = state.es = liveSocket(refs, (parts, key, d) => {
     if (parts[0] === 'routes' && d._latitude != null) {
       state.vehicles.set(key, { key, routeId: parts[1], vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
     } else if (parts[0] === 'etas') {
       state.etas.set(key, { key, stopId: parts[1], routeId: parts[2], etaToStop: d.eta, dist: d.dist, ts: d.tS });
     }
-  }, () => { redrawBuses(); scheduleRender(); });
+  }, () => {
+    if (!state.liveSince) {
+      state.liveSince = Date.now();
+      setTimeout(() => { if (state.es === es) { renderRoutes(); drawRoutes(); redrawBuses(); updateLiveStatus(); } }, 6500);
+    }
+    redrawBuses(); scheduleRender();
+  });
 }
 // Chalo's live socket (Socket.IO v2). Subscribe payloads must be JSON strings; the snapshot's payloads are
 // strings and later deltas are objects. `refs` is re-subscribed on every (re)connect, so callers can add to it.
@@ -665,7 +718,7 @@ function updateLiveStatus() {
   if (mode !== 'trip') return;
   const vis = new Set(visibleRoutes().map(r => r.routeId));
   const n = [...state.vehicles.values()].map(enrich).filter(v => vis.has(v.routeId) && !v.passed).length;
-  setStatus(`<b style="color:var(--text)">${n}</b> buses heading your way across <b style="color:var(--text)">${vis.size}</b> routes · live`, 'live');
+  setStatus(`<b style="color:var(--text)">${n}</b> buses heading your way across <b style="color:var(--text)">${vis.size}</b> routes · live${state.night ? ' · 🌙 night' : ''}`, 'live');
 }
 
 function redrawBuses() {
@@ -996,7 +1049,7 @@ const radius = () => +$('radius').value;
 const fmtDist = m => m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`;
 const nearPad = () => ({ paddingTopLeft: [20, 20], paddingBottomRight: [20, (mq.matches ? sheet.h : 0) + 20] });
 const routeInfo = id => near.routes.get(id) || near.extra.get(id);
-const top = () => near.stack.at(-1) || null;
+const nearTop = () => near.stack.at(-1) || null; // not `top`: window.top can't be redeclared
 
 function stopNearby() {
   if (near.sock) { near.sock.close(); near.sock = null; }
@@ -1051,14 +1104,14 @@ const nearId = v => v.routeId + '|' + v.key;
 const nearEta = (stopId, v) => near.etas.get(`${stopId}|${v.routeId}|${v.key}`);
 function nearBuses() {
   if (!near.center) return [];
-  const R = radius(), selId = top()?.type === 'bus' ? top().id : null;
+  const R = radius(), selId = nearTop()?.type === 'bus' ? nearTop().id : null;
   return [...near.vehicles.values()]
     .map(v => { const r = routeInfo(v.routeId); return { ...v, r, d: map.distance(near.center, [v.lat, v.lon]), eta: r && nearEta(r.stop.id, v) }; })
     .filter(v => v.r && ((near.routes.has(v.routeId) && v.d <= R) || nearId(v) === selId)) // the selected bus stays even outside the circle
     .sort((a, b) => a.d - b.d);
 }
 function drawNearBuses() {
-  const shown = new Set(), selId = top()?.type === 'bus' ? top().id : null;
+  const shown = new Set(), selId = nearTop()?.type === 'bus' ? nearTop().id : null;
   for (const v of nearBuses()) {
     const id = nearId(v), dim = !!selId && id !== selId, look = `${v.bearing}|${v.halted}|${dim}`;
     shown.add(id);
@@ -1099,7 +1152,7 @@ function backSel() { near.stack.pop(); showSel(); }
 function clearNearSel() { near.stack = []; showSel(); }
 function showSel() {
   layers.nearSel.clearLayers();
-  const sel = top();
+  const sel = nearTop();
   if (!sel) { if (near.circle) map.fitBounds(near.circle.getBounds(), nearPad()); }
   else if (sel.type === 'bus') {
     if (sel.route) {
@@ -1127,7 +1180,7 @@ function showSel() {
 
 async function selectNearBus(routeId, key) {
   const id = routeId + '|' + key;
-  if (top()?.type === 'bus' && top().id === id) return backSel();
+  if (nearTop()?.type === 'bus' && nearTop().id === id) return backSel();
   const sel = { type: 'bus', id, routeId, key, route: near.details.get(routeId) || null };
   pushSel(sel);
   if (sel.route) return;
@@ -1137,7 +1190,7 @@ async function selectNearBus(routeId, key) {
     r.idx = new Map(r.stops.map((st, k) => [st.id, k]));
     near.details.set(routeId, r);
     sel.route = r;
-    if (top() === sel) showSel();
+    if (nearTop() === sel) showSel();
   } catch (e) { setStatus('Couldn\'t load this bus\'s route: ' + e.message); }
 }
 async function openStop(stop) {
@@ -1155,7 +1208,7 @@ async function openStop(stop) {
       if (!known) near.extra.set(r.routeId, info);
       return info;
     });
-    if (top() === sel) { syncNearRefs(); renderNearby(); }
+    if (nearTop() === sel) { syncNearRefs(); renderNearby(); }
   } catch (e) { setStatus('Couldn\'t load buses for this stop: ' + e.message); }
 }
 async function openStation(id) {
@@ -1167,7 +1220,7 @@ async function openStation(id) {
 // --- rendering ---
 function renderNearby() {
   if (mode !== 'nearby') return;
-  const el = $('nearby'), sel = top();
+  const el = $('nearby'), sel = nearTop();
   if (!near.center && !sel) {
     el.innerHTML = `<div class="empty">${me.denied ? 'Location access is off.<br>Allow it in your browser to see buses around you.' : 'Finding your location…'}</div>`;
     return;
@@ -1262,11 +1315,11 @@ function renderTrainSel(sel, back) {
 }
 
 $('nearby').addEventListener('click', e => {
-  const t = e.target, sel = top();
+  const t = e.target, sel = nearTop();
   const al = t.closest('[data-alert]');
   if (al) {
     // the row's own stop: in the stop view a route's stop can differ from the one it was found at nearby
-    const [routeId, key, stopId] = al.dataset.alert.split('|'), r = top()?.routes?.find(x => x.routeId === routeId && x.stop.id === stopId) || routeInfo(routeId);
+    const [routeId, key, stopId] = al.dataset.alert.split('|'), r = nearTop()?.routes?.find(x => x.routeId === routeId && x.stop.id === stopId) || routeInfo(routeId);
     return addAlert({ kind: 'live', label: `${r.name} at ${r.stop.name}`, stopId: r.stop.id, routeId, key });
   }
   const id = t.closest('button')?.id;
@@ -1300,7 +1353,7 @@ $('nearby').addEventListener('click', e => {
   if (b) return selectNearBus(b.dataset.route, b.dataset.key);
 });
 $('radius').onchange = () => {
-  if (near.circle) { near.circle.setRadius(radius()); if (!top()) map.fitBounds(near.circle.getBounds(), nearPad()); }
+  if (near.circle) { near.circle.setRadius(radius()); if (!nearTop()) map.fitBounds(near.circle.getBounds(), nearPad()); }
   drawNearBuses(); renderNearby();
 };
 // "Open in Track route": that route in the Track tab, with this bus already followed

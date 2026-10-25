@@ -2,7 +2,7 @@
 
 BMTC Live: a website where you pick a destination in Bengaluru and see every BMTC bus that gets you there, moving live on a map, with an ETA to your boarding stop. It runs on Chalo's **unofficial** backend, the same one the official BMTC 2.0 app uses.
 
-Live: https://bmtc-live.pages.dev (Cloudflare Pages project `bmtc-live`).
+Live: https://bmtc.olildu.dpdns.org (self-hosted on oci-arm, Docker) and https://bmtc-live.pages.dev (Cloudflare Pages project `bmtc-live`).
 
 ## Layout
 
@@ -14,7 +14,9 @@ Live: https://bmtc-live.pages.dev (Cloudflare Pages project `bmtc-live`).
 | `functions/api/nearby.js` | `GET /api/nearby?lat&lon` returns the routes that board within 1.5 km, with headsign and boarding stop. It plans trips to 16 hubs in parallel because Chalo has no working buses-near-a-point call for BMTC. Used by the "Nearby" tab. |
 | `scripts/metro.py` | Builds `public/metro.json` (Namma Metro lines, stations, scheduled trips, fares) from the unofficial [Vonter/bmrcl-gtfs](https://github.com/Vonter/bmrcl-gtfs) feed (ODbL; attribution is on the map). Standard library only. |
 | `public/metro.json` | Generated, about 57 KB. Times are **scheduled**, not live: Chalo has the metro lines but no live or timetable data. |
-| `server.js` | Local dev server. Serves `public/` and runs the same `plan.js`. No dependencies. |
+| `functions/api/direct.js` | `GET /api/direct?flat&flon&tlat&tlon` returns direct routes between up to 6 distinctly named stops near each end (`routesbetweenstops`, 38 subrequests). Used in night mode only. |
+| `server.js` | Node server (local dev and the Docker image). Serves `public/`, `/api/*` (same Function code) and `/healthz`. No dependencies. Needs **Node 22** (it `import()`s the ESM Functions from CommonJS). |
+| `Dockerfile`, `.github/workflows/release.yml`, `deploy/docker-compose.prod.yml` | Self-hosting on oci-arm; see "Self-hosting" below. |
 | `reverse-engineering/FINDINGS.md` | **Read this before touching anything API-related.** Every endpoint, header, param quirk and socket protocol detail, plus what failed. |
 | `reverse-engineering/apk/` | The original split APK pulled from a phone. |
 | `reverse-engineering/decompiled/` | jadx output (Chalo's own packages). |
@@ -42,12 +44,31 @@ The page watches GPS from load in every tab, and the map has a "my location" but
 - **Fares**: `plan.js` adds `fare` (per bus leg) and `totalFare` from the planner's `fares[].leg_index`.
 - **Service type**: `serviceTags()` maps Chalo tags (Vajra → AC, Vayu Vajra → AC · Airport, Ordinary → Non-AC, `MF-` → Metro feeder). BMTC sends **no crowding/occupancy data**.
 
+## Night mode
 
+Late at night the planner has little or nothing for "now". When the normal pass finds fewer than 5 routes, `/api/plan` runs a second pass planned for tomorrow 09:00 (`istTomorrow9()`) and marks routes found only that way `night: true`. It keeps at most 20 routes, because both passes plus `routedetails` must fit in 50 subrequests (about 48 at worst). The page then:
+- adds `/api/direct` routes
+- shows a 🌙 banner
+- once the live snapshot has had 6 s, lists routes with a bus coming to the boarding stop first and collapses night routes with nothing running behind "N more routes… show"
+- warns on transfers whose connecting route (`connects`) has no live bus
+
+`/api/nearby` does the same second pass (32 subrequests).
+
+## Self-hosting (oci-arm)
+
+Same pattern as linkup-backend on the same box:
+- **CI:** pushing a tag `v*.*.*` runs `.github/workflows/release.yml`. It builds `linux/amd64,linux/arm64` with QEMU and pushes `ghcr.io/olildu/bmtc-live:<tag>` and `:latest` with `GITHUB_TOKEN`. Pushes to main don't deploy. The GHCR package must stay **public** (the server has no GHCR login).
+- **CD:** on oci-arm, `~/dev/bmtc-live/docker-compose.prod.yml` (a copy of `deploy/docker-compose.prod.yml`) runs the image on host port **8010** with the Watchtower label. linkup's Watchtower (`linkup-backend-watchtower-1`, `--label-enable --interval 60`) pulls new `:latest` images and recreates the container. Docker needs `sudo` there.
+- **Ingress:** the Cloudflare Tunnel in `/etc/cloudflared/config.yml` maps `bmtc.olildu.dpdns.org → http://localhost:8010`. It's shared with linkup, finance-dashboard, route-26 and cogni-anchor, so back it up and run `cloudflared tunnel ingress validate` before restarting.
+- **Release:** `git tag v1.2.3 && git push origin v1.2.3`, then check `curl https://bmtc.olildu.dpdns.org/healthz` shows the new version within about 2 minutes. **Roll back:** pin `image: ghcr.io/olildu/bmtc-live:v1.2.2` in the server compose file and run `sudo docker compose -f docker-compose.prod.yml up -d`.
+
+## Commands
 
 ```
 node server.js                                                          # local, http://localhost:3000
 npx wrangler pages deploy public --project-name bmtc-live --branch main # deploy (wrangler picks up functions/)
 python3 scripts/metro.py                                                # refresh public/metro.json from the metro GTFS
+git tag v1.2.3 && git push origin v1.2.3                                # release to oci-arm (bmtc.olildu.dpdns.org)
 ```
 
 There are no tests or build step. To check page JS syntax:
@@ -59,6 +80,7 @@ There are no tests or build step. To check page JS syntax:
 - The trip planner needs **`mode=transit`** and an **upper-case city** (`BENGALURU`). `start_time` is seconds since midnight **IST**, and `day` is `sun`…`sat`.
 - Chalo's CDN returns **403 to Cloudflare Workers without a `user-agent`**. Keep `user-agent: Ktor client` in `plan.js`.
 - ETAs are in **seconds**.
+- The page script runs as a classic script, so a top-level `let`/`const`/`class` must **not** be named after a protected browser global (`top`, `window`, `document`, `location`). It throws "redeclaration of non-configurable global property" and nothing loads. `node --check` and jsdom don't catch this; a real browser does.
 - Cloudflare allows **50 subrequests** per Function call. `plan.js` uses up to 15 planner and nearby-stop calls plus one `routedetails` call per route, so routes are capped at 30 (`MAX_ROUTES`).
 - CARTO basemaps now need an API key, so don't switch back to them. OpenFreeMap needs no key.
 - The repo's code and commits must **not** mention Claude or AI, and must not include co-author trailers.

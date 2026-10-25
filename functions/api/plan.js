@@ -4,9 +4,18 @@ export const API = 'https://production.zophop.com/scheduler_v4';
 const HEADERS = { source: '0', appVer: '1001', deviceId: 'bmtc-web', accept: 'application/json', 'user-agent': 'Ktor client' };
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
+// when to plan for: seconds since IST midnight, day name, and the matching epoch ms
 export function istNow() {
   const d = new Date(Date.now() + 5.5 * 3600e3);
-  return { secs: d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds(), day: DAYS[d.getUTCDay()] };
+  return { secs: d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds(), day: DAYS[d.getUTCDay()], ms: Date.now() };
+}
+// Late at night the planner returns nothing for "leaving now" (it plans from the timetable). Planning for tomorrow
+// 09:00 still discovers the routes; the page then shows only the buses actually running. The epoch ms must match:
+// "today 09:00" sent with the current time returns nothing.
+export function istTomorrow9() {
+  const d = new Date(Date.now() + 5.5 * 3600e3);
+  const ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 9, 0) - 5.5 * 3600e3;
+  return { secs: 9 * 3600, day: DAYS[new Date(ms + 5.5 * 3600e3).getUTCDay()], ms };
 }
 
 export async function getJson(url, timeoutMs = 20000) {
@@ -35,19 +44,23 @@ export function dist(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const walkM = (a, b) => Math.round(dist(a, b) * 1.3);
-const WALK_SPEED = 80; // m/min
-const MAX_WALK_MIN = 35, MAX_ROUTES = 30; // Workers allow 50 subrequests per request
+export const walkM = (a, b) => Math.round(dist(a, b) * 1.3);
+export const WALK_SPEED = 80; // m/min
+// Workers allow 50 subrequests per request: a normal plan uses 15 + one routedetails per route; a night plan
+// adds a second 13-call pass (nearby stops are reused), so it keeps fewer routes.
+const MAX_WALK_MIN = 35, MAX_ROUTES = 30, MAX_ROUTES_NIGHT = 20, MIN_ROUTES = 5;
 
-export async function tripPlans(f, t, secs, day, timeoutMs) {
+export async function tripPlans(f, t, when, timeoutMs) {
   const j = await getJson(`${API}/v5/BENGALURU/tripplanner?from_lat=${f.lat}&from_lon=${f.lon}&to_lat=${t.lat}&to_lon=${t.lon}` +
-    `&mode=transit&start_time=${secs}&day=${day}&startTimeMillis=${Date.now()}`, timeoutMs);
+    `&mode=transit&start_time=${when.secs}&day=${when.day}&startTimeMillis=${when.ms}`, timeoutMs);
   return [...(j.payload?.itineraries || []), ...(j.payload?.nearbyItineraries || [])];
 }
-async function nearbyStops(p) {
+// the up-to-20 bus stops nearest a point (about 1 km), nearest first
+export async function nearbyStopsFull(p) {
   const j = await getJson(`${API}/v4/bengaluru/nearby/stops?lat=${p.lat}&lon=${p.lon}&transitMode=bus`, 4000);
-  return (j || []).map(s => ({ lat: s.stop_lat, lon: s.stop_lon }));
+  return (j || []).map(s => ({ id: s.stop_id, name: s.stop_name, lat: s.stop_lat, lon: s.stop_lon }));
 }
+const nearbyStops = nearbyStopsFull;
 // up to n stops, at least `gap` m from each other and from the point itself
 function spread(p, stops, n, gap = 200) {
   const out = [p];
@@ -58,18 +71,29 @@ function spread(p, stops, n, gap = 200) {
 export async function plan(q) {
   for (const k of ['flat', 'flon', 'tlat', 'tlon']) if (!isFinite(parseFloat(q[k]))) throw new Error(`missing ${k}`);
   const from = { lat: +q.flat, lon: +q.flon }, to = { lat: +q.tlat, lon: +q.tlon };
-  const { secs, day } = istNow();
+  const now = istNow();
   // The planner only returns a few itineraries from the exact point, often all with transfers. Planning again
   // from the stops a short walk away (and to stops near the destination) turns up direct buses worth walking to.
   // These extra lookups are best-effort and time-boxed, so a slow one can't hold up the main plan.
-  const main = tripPlans(from, to, secs, day);
-  const extra = Promise.all([nearbyStops(from).catch(() => []), nearbyStops(to).catch(() => [])]).then(([fs, ts]) =>
-    Promise.allSettled([...spread(from, fs, 8).map(s => [s, to]), ...spread(to, ts, 4).map(s => [from, s])]
-      .map(([f, t]) => tripPlans(f, t, secs, day, 6000))));
-  const [mainRes, extraRes] = await Promise.all([main.then(v => ({ value: v }), e => ({ error: e })), extra]);
-  const extraIts = extraRes.flatMap(r => r.status === 'fulfilled' ? r.value : []);
-  if (mainRes.error && !extraIts.length) throw mainRes.error;
-  const its = [...(mainRes.value || []), ...extraIts];
+  const stops = Promise.all([nearbyStops(from).catch(() => []), nearbyStops(to).catch(() => [])]);
+  const pass = async when => {
+    const main = tripPlans(from, to, when);
+    const extra = stops.then(([fs, ts]) =>
+      Promise.allSettled([...spread(from, fs, 8).map(s => [s, to]), ...spread(to, ts, 4).map(s => [from, s])]
+        .map(([f, t]) => tripPlans(f, t, when, 6000))));
+    const [mainRes, extraRes] = await Promise.all([main.then(v => ({ value: v }), e => ({ error: e })), extra]);
+    const extraIts = extraRes.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    if (mainRes.error && !extraIts.length) throw mainRes.error;
+    return [...(mainRes.value || []), ...extraIts];
+  };
+  // Thin results (late at night) get a second pass planned for tomorrow 09:00; routes only found that way are
+  // marked `night` and the page shows them only while a bus is actually running.
+  const busRoutes = list => new Set(list.flatMap(it => (it.legs || []).filter(l => l.mode === 'BUS').map(l => l.route_id)));
+  let its = await pass(now), nightIts = [];
+  if (busRoutes(its).size < MIN_ROUTES) nightIts = await pass(istTomorrow9()).catch(() => []);
+  const nowRoutes = busRoutes(its), night = nightIts.length > 0;
+  its = [...its, ...nightIts];
+  const day = now.day;
 
   const routes = new Map();
   for (const it of its) {
@@ -104,10 +128,13 @@ export async function plan(q) {
         // fares come per leg (fares[].leg_index points into it.legs) plus a total for the whole itinerary
         fare: (it.fares || []).find(f => (f.leg_index || []).includes(legs.indexOf(l)))?.default_fare ?? null,
         totalFare: it.total_fare ?? null,
+        // the other buses of this itinerary, so the page can tell whether a transfer's connection is running
+        connects: busLegs.filter(x => x !== l).map(x => ({ routeId: x.route_id, name: x.route_name || x.routeName || x.route_id })),
+        ...(!nowRoutes.has(l.route_id) && { night: true }),
       });
     }
   }
-  const picked = [...routes.values()].sort((a, b) => (b.direct - a.direct) || (a.totalTime - b.totalTime)).slice(0, MAX_ROUTES);
+  const picked = [...routes.values()].sort((a, b) => (b.direct - a.direct) || (a.totalTime - b.totalTime)).slice(0, night ? MAX_ROUTES_NIGHT : MAX_ROUTES);
   const out = await Promise.all(picked.map(async r => {
     try {
       const d = await routeDetails(r.routeId, day);
