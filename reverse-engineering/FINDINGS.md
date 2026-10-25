@@ -87,6 +87,7 @@ Code: `app/chalo/livetracking/frameworklivetracking/` (`RealTimeSocketManagerImp
 |---|---|---|
 | `routes:<routeId>` | every live bus on a route | `vNo` (plate), `_latitude`, `_longitude`, `bearing`, `_isHalted`, `sId` (next stop id), `lSId` (last stop of the route), `psId`/`psTime` (previous stop and time), `eta`, `tS` (ms) |
 | `etas:<stopId>:<routeId>` | every bus's ETA to that stop | `eta` (**seconds**, `-1` means already passed), `dist` (m), `vNo`, `rN` (route name, e.g. `V-335E`), `dest`, `isHalted`, `tS` |
+| (note) | `etas:<stop>:<route>` works for **any** stop on the route: each bus reports its ETA and distance to stops far ahead (KIA-8: 7, 23, 41 and 60 min at +2, +6, +12 and +20 stops). ETA at the drop-off stop minus ETA at the boarding stop gives a live ride time. | |
 | `etasList` | polled batch form: `{ref:'etasList', etasList:['etas:<stop>:<route>', …]}` | same as `etas` |
 
 ### Fares and service type

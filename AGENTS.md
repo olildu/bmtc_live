@@ -9,7 +9,8 @@ Live: https://bmtc.olildu.dpdns.org (self-hosted on oci-arm, Docker) and https:/
 | Path | What |
 |---|---|
 | `public/index.html` | The whole frontend in one file: HTML, CSS and JS. Leaflet, with MapLibre rendering OpenFreeMap's `dark` vector style. Socket.IO v2 client from jsDelivr. |
-| `functions/api/plan.js` | Cloudflare Pages Function, `GET /api/plan?flat&flon&tlat&tlon`. Calls Chalo's trip planner, keeps the bus legs, adds each route's stop list, and returns `[{routeId, name, direct, board, alight, stops[], travelTime, tags}]`. |
+| `functions/api/plan.js` | `GET /api/plan?flat&flon&tlat&tlon`. Calls Chalo's trip planner from your point and from nearby stops, and returns `{journeys: [{legs: walk/bus/metro, totalTime, fare, night?}], stops: {routeId: [...]}, night}`. Metro legs are kept. |
+| `functions/api/tometro.js` | `GET /api/tometro?flat&flon&st=lat,lon,id;…` returns direct buses from stops near you to stops beside up to 3 metro stations the page chose (`routesbetweenstops`, about 34 subrequests). Used for bus → metro journeys. |
 | `functions/api/route.js` | `GET /api/route?q=<route number>` searches routes (both directions). `GET /api/route?id=<routeId>` returns `{name, from, to, tags, polyline, stops[]}`. Used by the "Track a route" tab. |
 | `functions/api/nearby.js` | `GET /api/nearby?lat&lon` returns the routes that board within 1.5 km, with headsign and boarding stop. It plans trips to 16 hubs in parallel because Chalo has no working buses-near-a-point call for BMTC. Used by the "Nearby" tab. |
 | `scripts/metro.py` | Builds `public/metro.json` (Namma Metro lines, stations, scheduled trips, fares) from the unofficial [Vonter/bmrcl-gtfs](https://github.com/Vonter/bmrcl-gtfs) feed (ODbL; attribution is on the map). Standard library only. |
@@ -27,6 +28,25 @@ Live: https://bmtc.olildu.dpdns.org (self-hosted on oci-arm, Docker) and https:/
 2. **Planning:** `/api/plan` returns the bus routes connecting the two points, with direct routes first. From the exact point the planner often returns only trips with transfers, so the Function also plans from up to 8 nearby stops around the start and to 4 around the destination. That turns up direct buses a short walk away. Each route carries walk minutes (straight line ×1.3 at 80 m/min), and the page filters by "Walk up to" (25 min by default).
 3. **Live data:** the browser opens Chalo's socket directly (`crtslb.chalo.com`, path `/products/live/partitions/0`). It subscribes to `routes:<routeId>` for positions and `etas:<boardStopId>:<routeId>` for ETAs to the boarding stop.
 4. **Drawing:** the map shows only the ridden segment (boarding stop to alighting stop) plus dashed walking legs. A bus is "passed" when its ETA is `-1` or its next stop is beyond the boarding stop in the route's stop sequence. Passed buses are hidden by default.
+
+## Plan trip: the journey engine
+
+Plan trip ranks every way to get there by **live arrival time**. `plan()` calls `/api/plan`, `/api/direct` and `/api/tometro` (stations picked in the browser by `boardingStations()`) in parallel. `buildOptions()` turns everything into legs:
+- **one bus**
+- **bus + metro**
+- **metro**: walk to a station within 1.5 km
+- **two buses**: behind the "2 buses" toggle
+
+`prune()` keeps the best per kind (`KEEP`), and `computeForks()` adds a "get off at the metro station" branch to direct buses that pass a station at least 1.5 km from you.
+
+`scoreLegs()` works out the arrival:
+- **Walking:** straight-line distance × 1.3 at 80 m/min.
+- **Bus legs:** use `catchBus()`, the first live bus whose ETA at your stop is at least your walk time. The ride lasts until **that same bus's live ETA at your drop-off stop**: `etas:<dropStop>:<route>` reports each vehicle far down the route. If that's missing, it falls back to the planner's travel time or stop distances at 15 km/h.
+- **Metro legs:** use `scheduleMetro()` (paths with ≤ 2 interchanges, next scheduled train after a 3 min station entry, 4 min per change). No train within the hour means service has ended.
+
+Sorting: Fastest (metro wins ties within 3 min), Least walking or Cheapest (`saved.prefs`). After 6 s of live data, options with no catchable bus collapse.
+
+The UI is a "Best way" hero card, then groups, a fork row, and an expanded step list with 🔔 / Track this bus. The map draws each leg (bus along its stops, metro in its line colour, dashed walks).
 
 ## Track a route
 

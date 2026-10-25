@@ -61,6 +61,34 @@
   .nightbar small { color: var(--muted); }
   .idle-toggle { margin: 6px; width: calc(100% - 12px); border: 1px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; padding: 9px; border-radius: 10px; cursor: pointer; }
   .warn { color: var(--warn); }
+  .when { display: flex; gap: 8px; margin: 8px 18px 0; }
+  .when select, .when input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; padding: 7px 8px; color-scheme: dark; }
+  .when input { flex: 1; min-width: 0; }
+  /* journey cards */
+  .opt { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 6px; cursor: pointer; }
+  .opt:hover { border-color: #3a4152; }
+  .opt.hero { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(34,197,94,.25) inset; }
+  .opt.sel { border-color: var(--accent2); }
+  .opt.idle { opacity: .55; }
+  .otop { display: flex; gap: 10px; align-items: flex-start; }
+  .ostrip { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); }
+  .ostrip .sep { font-style: normal; color: #4a5162; }
+  .ostrip .badge { font-size: 12px; padding: 2px 7px; }
+  .oarr { text-align: right; line-height: 1.15; white-space: nowrap; }
+  .oarr small { display: block; color: var(--muted); font-size: 11px; }
+  .oarr b { font-size: 18px; }
+  .opt.hero .oarr b { font-size: 24px; color: var(--accent); }
+  .ometa { margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .ometa b { color: var(--text); font-weight: 600; }
+  .chip-live { color: var(--accent); }
+  .ghead { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 8px 2px; }
+  .herohead { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin: 8px 8px 0; }
+  .fork { margin-top: 8px; padding: 8px 10px; border-radius: 10px; border: 1px dashed #3a4152; font-size: 12.5px; line-height: 1.5; display: flex; gap: 8px; align-items: center; }
+  .fork span { flex: 1; }
+  .steps { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .step { display: flex; gap: 8px; padding: 5px 0; font-size: 12.5px; line-height: 1.45; }
+  .step > i { font-style: normal; width: 18px; flex: none; text-align: center; }
+  .step small { color: var(--muted); }
   /* saved places */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 18px 0; }
   .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-size: 12.5px;
@@ -167,7 +195,8 @@
     .sub { display: none; }
     .field, .hint, #status, .toggles, .tabs { margin-left: 16px; margin-right: 16px; }
     .tabs { margin-top: 6px; }
-    .chips { margin-left: 16px; margin-right: 16px; }
+    .chips, .when { margin-left: 16px; margin-right: 16px; }
+    .when select, .when input { font-size: 16px; }
     #toast { bottom: calc(var(--sheet-h, 0px) + 16px); }
     .field { margin-top: 8px; }
     .field label { margin-bottom: 4px; }
@@ -205,6 +234,10 @@
       <div class="sugg" id="toSugg"></div>
     </div>
     <div class="chips trip-only" id="chips"></div>
+    <div class="when trip-only">
+      <select id="whenMode"><option value="now">Leave now</option><option value="at">Leave at</option><option value="by">Arrive by</option></select>
+      <input type="datetime-local" id="whenAt" style="display:none">
+    </div>
     <div class="field route-only">
       <label>Route</label>
       <input id="routeQ" placeholder="Route number, e.g. 500-D" autocomplete="off" autocapitalize="characters">
@@ -213,9 +246,9 @@
     <div class="hint trip-only" id="hint">Tip: click the map to set the destination, shift+click to set the start.</div>
     <div id="status"><span class="dot" id="dot"></span><span id="statusText">Set a destination to begin</span></div>
     <div class="toggles trip-only">
-      <label><input type="checkbox" id="onlyDirect"> Direct only</label>
-      <label>Walk up to <select id="maxWalk"><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="25" selected>25 min</option><option value="999">any</option></select></label>
-      <label><input type="checkbox" id="hidePassed" checked> Hide buses that passed your stop</label>
+      <label>Sort <select id="prio"><option value="fastest">Fastest</option><option value="walk">Least walking</option><option value="cheap">Cheapest</option></select></label>
+      <label><input type="checkbox" id="optMetro" checked> Metro</label>
+      <label><input type="checkbox" id="optTwoBus"> 2 buses</label>
     </div>
     <div id="routes" class="trip-only"><div class="empty">No destination yet.<br>Search above or click on the map.</div></div>
     <div id="track" class="route-only"></div>
@@ -247,7 +280,7 @@ L.maplibreGL({
   attribution: '&copy; OpenFreeMap &copy; OpenStreetMap · Metro timetable: BMRCL via Vonter/bmrcl-gtfs (ODbL)',
 }).addTo(map);
 
-const state = { from: null, to: null, routes: [], selected: null, es: null, vehicles: new Map(), etas: new Map() };
+const state = { from: null, to: null, when: { mode: 'now' }, options: [], sel: null, branch: {}, es: null, refs: new Set(), vehicles: new Map(), etas: new Map(), stopLists: new Map(), night: false, showIdle: false, liveSince: null };
 const layers = { lines: L.layerGroup().addTo(map), stops: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), pins: L.layerGroup().addTo(map) };
 const busMarkers = new Map();
 
@@ -488,118 +521,495 @@ map.on('click', e => {
   mc.addEventListener('touchend', () => clearTimeout(lp));
 }
 
-// --- planning ---
+// --- Plan trip: the journey engine ---
+// Every way to get there (one bus, bus + metro, metro, and with the toggle two buses) becomes a list of legs, ranked by
+// LIVE ARRIVAL TIME: walk to the stop, the first bus you can actually catch (its live ETA at your stop), when that same
+// bus reaches your drop-off stop (its live ETA there), scheduled metro trains, then the walk. Re-ranked on every update.
+const BUS_MPM = 250, STATION_ENTRY = 180, METRO_TRANSFER = 240, NO_BUS_WAIT = 600, SETTLE_MS = 6000, MAX_METRO_WAIT = 3600, EST_WAIT = 480;
+// planning for later: times are IST seconds from today's midnight (tomorrow 09:00 = 86400 + 32400)
+const todayMs = () => Date.now() - istNowSecs().secs * 1000;
+const toSecs = ms => (ms - todayMs()) / 1000;
+const planned = () => state.when.mode !== 'now';
+const KIND_LABEL = { bus: 'One bus', busmetro: 'Bus + Metro', metro: 'Metro', transfer: 'Two buses' };
+const mdist = (a, b) => map.distance([a.lat, a.lon], [b.lat, b.lon]);
+const walkSecs = (a, b) => mdist(a, b) * 1.3 / 80 * 60;
+const routeColors = new Map();
+const routeColor = id => { if (!routeColors.has(id)) routeColors.set(id, COLORS[routeColors.size % COLORS.length]); return routeColors.get(id); };
+const getJ = async u => { const r = await fetch(u); const j = await r.json(); if (!r.ok || j?.error) throw new Error(j?.error || r.status); return j; };
+
 function stopTripLive() {
   if (state.es) { state.es.close(); state.es = null; }
-  layers.lines.clearLayers(); layers.stops.clearLayers(); layers.buses.clearLayers(); busMarkers.clear(); state.vehicles.clear(); state.etas.clear();
+  layers.lines.clearLayers(); layers.stops.clearLayers(); layers.buses.clearLayers(); busMarkers.clear();
+  state.vehicles.clear(); state.etas.clear(); state.refs.clear(); state.liveSince = null;
 }
+function setStops(id, stops) { state.stopLists.set(id, { stops, idx: new Map(stops.map((x, k) => [x.id, k])) }); }
+
+// --- metro stations and routing (public/metro.json) ---
+const stationsList = () => metro._list ??= [...metro.byStation.entries()].map(([id, on]) => ({ id, name: on[0].st[1], lat: on[0].st[2], lon: on[0].st[3], on }));
+const station = id => stationsList().find(x => x.id === id);
+const stIdx = (id, line) => metro.byStation.get(id)?.find(o => o.line === line)?.i;
+function stationsNear(p, maxM, n) { return stationsList().map(x => ({ ...x, d: mdist(p, x) })).filter(x => x.d <= maxM).sort((a, b) => a.d - b.d).slice(0, n); }
+// line-by-line paths with at most 2 interchanges (Majestic: Purple/Green, RV Road: Green/Yellow)
+function metroPaths(a, b) {
+  const lines = id => (metro.byStation.get(id) || []).map(o => o.line);
+  const inter = (l1, l2) => stationsList().filter(x => x.on.some(o => o.line === l1) && x.on.some(o => o.line === l2)).map(x => x.id);
+  const A = lines(a), B = lines(b), out = [];
+  for (const l of A) if (B.includes(l)) out.push([{ line: l, from: a, to: b }]);
+  if (out.length) return out;
+  for (const la of A) for (const lb of B) for (const x of inter(la, lb)) out.push([{ line: la, from: a, to: x }, { line: lb, from: x, to: b }]);
+  if (out.length) return out;
+  for (const la of A) for (const lm of Object.keys(metro.lines)) for (const lb of B)
+    if (lm !== la && lm !== lb) for (const x of inter(la, lm)) for (const y of inter(lm, lb)) if (x !== y) out.push([{ line: la, from: a, to: x }, { line: lm, from: x, to: y }, { line: lb, from: y, to: b }]);
+  return out;
+}
+// the first scheduled train from station index i to j (direction-0 order) leaving at or after `ready` (IST seconds)
+function nextTrain(line, i, j, ready) {
+  const L = metro.lines[line], N = L.stations.length, dir = j > i ? 0 : 1, ii = dir ? N - 1 - i : i, jj = dir ? N - 1 - j : j, off = metro.offsets[line][dir];
+  const { d } = istNowSecs(); let best = null;
+  for (const shift of [-1, 0, 1]) {
+    const trips = metro.trips[metroService(new Date(d.getTime() + shift * 86400e3))]?.[line]?.[dir] || [];
+    for (const t of trips) {
+      if (t[0] > ii || t[1] < jj) continue;
+      const dep = t[2] + off[ii] - off[t[0]] + shift * 86400;
+      if (dep >= ready && (!best || dep < best.dep)) best = { line, i, j, dir, dep, arr: dep + off[jj] - off[ii] };
+    }
+  }
+  return best;
+}
+function scheduleMetro(a, b, ready) {
+  let best = null;
+  for (const path of metroPaths(a, b)) {
+    let t = ready, legs = [];
+    for (const [k, p] of path.entries()) {
+      const i = stIdx(p.from, p.line), j = stIdx(p.to, p.line);
+      const tr = i != null && j != null && i !== j && nextTrain(p.line, i, j, t + (k ? METRO_TRANSFER : 0));
+      if (!tr) { legs = null; break; }
+      legs.push(tr); t = tr.arr;
+    }
+    if (legs && (!best || t < best.arrive)) best = { legs, arrive: t };
+  }
+  return best;
+}
+// rough metro time without waiting for a specific train, to choose which stations are worth a bus ride
+function staticMetro(a, b) {
+  let best = Infinity;
+  for (const path of metroPaths(a, b)) {
+    let t = 300 + (path.length - 1) * METRO_TRANSFER;
+    for (const p of path) { const i = stIdx(p.from, p.line), j = stIdx(p.to, p.line), off = metro.offsets[p.line][0]; t += Math.abs((off[j] ?? 0) - (off[i] ?? 0)); }
+    best = Math.min(best, t);
+  }
+  return best;
+}
+// stations worth taking a bus to: least (bus ride there + metro to the destination station)
+function boardingStations(from, dst) {
+  return stationsList().filter(x => x.id !== dst.id).map(x => ({ ...x, d: mdist(from, x) })).filter(x => x.d > 1200 && x.d < 9000)
+    .map(x => ({ ...x, score: x.d * 1.4 / BUS_MPM * 60 + staticMetro(x.id, dst.id) })).sort((a, b) => a.score - b.score).slice(0, 3);
+}
+
+// --- building the options ---
+const walkLeg = (a, b) => ({ t: 'walk', from: { lat: a.lat, lon: a.lon, name: a.name }, to: { lat: b.lat, lon: b.lon, name: b.name } });
+const busLeg = r => ({ t: 'bus', routeId: r.routeId, name: r.name, tags: r.tags || [], board: r.board, alight: r.alight, fare: r.fare ?? null, travelTime: r.travelTime || null });
+const busKey = r => `${r.routeId}@${r.board.id}>${r.alight.id}`;
+function buildOptions(journeys, direct, tometro, dSt, from, to) {
+  const opts = new Map();
+  const add = o => { const prev = opts.get(o.key); if (!prev || (o.src === 'plan' && prev.src !== 'plan')) opts.set(o.key, o); };
+  const near = p => metro && stationsNear(p, 400, 1)[0];
+  for (const j of journeys) { // the trip planner: exact itineraries, with fares
+    const rides = j.legs.filter(l => l.mode !== 'walk');
+    const nb = rides.filter(l => l.mode === 'bus').length, nm = rides.length - nb;
+    const kind = nb > 1 ? 'transfer' : nm ? (nb ? 'busmetro' : 'metro') : 'bus';
+    let legs = [], at = from;
+    for (const l of rides) {
+      if (l.mode === 'bus') { legs.push(walkLeg(at, l.board), busLeg(l)); at = l.alight; continue; }
+      const a = near(l.board), b = near(l.alight);
+      if (!a || !b) { legs = null; break; }
+      legs.push(walkLeg(at, a), { t: 'metro', from: a.id, to: b.id }); at = b;
+    }
+    if (!legs) continue;
+    legs.push(walkLeg(at, to));
+    // a metro-only journey gets the same key as the one built from metro.json below, so it isn't listed twice
+    const m = legs.filter(l => l.t === 'metro');
+    const key = kind === 'metro' && m.length === 1 ? `M:${m[0].from}>${m[0].to}` : 'P:' + j.key;
+    add({ key, kind, legs, fare: j.fare, night: !!j.night, src: 'plan' });
+  }
+  for (const d of Array.isArray(direct) ? direct : []) // direct buses between stops near both ends (any hour)
+    add({ key: 'P:' + busKey(d), kind: 'bus', legs: [walkLeg(from, d.board), busLeg(d), walkLeg(d.alight, to)], fare: null, src: 'direct' });
+  const dst = dSt[0];
+  if (dst) {
+    for (const r of (Array.isArray(tometro) ? tometro : []).slice(0, 14)) { // a bus to a metro station, then the metro
+      const st = station(r.stationId);
+      if (st && st.id !== dst.id) add({ key: `T:${busKey(r)}>${st.id}`, kind: 'busmetro', legs: [walkLeg(from, r.board), busLeg(r), walkLeg(r.alight, st), { t: 'metro', from: st.id, to: dst.id }, walkLeg(dst, to)], fare: null, src: 'tometro' });
+    }
+    for (const a of stationsNear(from, 1500, 2)) for (const b of dSt) if (a.id !== b.id) // walk to a station near you
+      add({ key: `M:${a.id}>${b.id}`, kind: 'metro', legs: [walkLeg(from, a), { t: 'metro', from: a.id, to: b.id }, walkLeg(b, to)], fare: null, src: 'metro' });
+  }
+  return [...opts.values()];
+}
+// a direct bus that passes a metro station on the way: offer "get off there and take the metro"
+function computeForks(dst, from, to) {
+  if (!metro || !dst) return;
+  for (const o of state.options) {
+    if (o.kind !== 'bus') continue;
+    const l = o.legs.find(x => x.t === 'bus'), sl = state.stopLists.get(l.routeId);
+    const a = sl?.idx.get(l.board.id), b = sl?.idx.get(l.alight.id);
+    if (a == null || b == null || b <= a) continue;
+    let best = null;
+    for (let k = a + 1; k < b; k++) {
+      const stop = sl.stops[k], st = stationsNear(stop, 400, 1)[0];
+      // a station right where you start is just the plain metro option
+      if (!st || st.id === dst.id || mdist(from, st) < 1500) continue;
+      const est = ((k - a) / (b - a)) * rideSecs(l) + walkSecs(stop, st) + staticMetro(st.id, dst.id) + walkSecs(dst, to);
+      if (!best || est < best.est) best = { est, stop, st };
+    }
+    if (best) o.fork = { stop: best.stop, station: best.st, dst, legs: [o.legs[0], { ...l, alight: best.stop }, walkLeg(best.stop, best.st), { t: 'metro', from: best.st.id, to: dst.id }, walkLeg(dst, to)] };
+  }
+}
+
+// keep the most promising options of each kind by a rough time (walk + ride + metro), so every kept option gets live data
+const KEEP = { bus: 20, busmetro: 12, metro: 6, transfer: 8 };
+function staticSecs(legs) {
+  return legs.reduce((t, l) => t + (l.t === 'walk' ? walkSecs(l.from, l.to) : l.t === 'bus' ? 300 + rideSecs(l) : staticMetro(l.from, l.to)), 0);
+}
+function prune(opts) {
+  return Object.keys(KEEP).flatMap(k => opts.filter(o => o.kind === k).map(o => ({ o, t: staticSecs(o.legs) })).sort((a, b) => a.t - b.t).slice(0, KEEP[k]).map(x => x.o));
+}
+
+// --- live scoring ---
+function rideSecs(l) {
+  if (l.travelTime) return l.travelTime;
+  const sl = state.stopLists.get(l.routeId), a = sl?.idx.get(l.board.id), b = sl?.idx.get(l.alight.id);
+  if (a != null && b != null && b > a) { let m = 0; for (let k = a; k < b; k++) m += mdist(sl.stops[k], sl.stops[k + 1]); return m / BUS_MPM * 60; }
+  return mdist(l.board, l.alight) * 1.4 / BUS_MPM * 60;
+}
+// the first live bus that reaches your stop after you do (30 s grace), and when that same bus reaches your drop-off
+function catchBus(l, readyIn) {
+  let best = null;
+  for (const v of state.vehicles.values()) {
+    if (v.routeId !== l.routeId) continue;
+    const eb = state.etas.get(`${l.board.id}|${l.routeId}|${v.key}`);
+    if (!(eb >= 0) || eb < readyIn - 30) continue;
+    const ea = state.etas.get(`${l.alight.id}|${l.routeId}|${v.key}`), liveRide = ea > eb;
+    const arr = liveRide ? ea : eb + rideSecs(l);
+    if (!best || arr < best.arr) best = { key: v.key, vNo: v.vNo, eb, arr, liveRide };
+  }
+  return best;
+}
+// base == null: leaving now, using live buses. Otherwise planned for `base` (IST secs): the planner's scheduled times
+// when the bus fits, else an estimated wait + ride; metro from its timetable.
+function scoreLegs(legs, base = null) {
+  const now = base == null ? istNowSecs().secs : base, steps = [];
+  let t = 0, walk = 0, noBus = false, live = false, metroUsed = false, estimated = false, first = null;
+  for (const l of legs) {
+    if (l.t === 'walk') { const w = walkSecs(l.from, l.to); steps.push({ l, secs: w }); t += w; walk += w; }
+    else if (l.t === 'bus' && base != null) {
+      const ready = now + t; let dep = null, arr = null, how = 'estimated';
+      if (l.dep && l.arr) { const d = toSecs(l.dep); if (d >= ready - 60) { dep = d; arr = toSecs(l.arr); how = 'scheduled'; } }
+      if (dep == null) { dep = ready + EST_WAIT; arr = dep + rideSecs(l); estimated = true; }
+      steps.push({ l, plan: { dep, arr, how }, wait: dep - ready, ride: arr - dep });
+      first ??= { l, leaveAt: dep - t };
+      t = arr - now;
+    }
+    else if (l.t === 'bus') {
+      const b = catchBus(l, t);
+      if (!b) { const r = rideSecs(l); steps.push({ l, none: true, ride: r }); noBus = true; t += NO_BUS_WAIT + r; continue; }
+      live = true; steps.push({ l, bus: b, wait: b.eb - t, ride: b.arr - b.eb });
+      first ??= { l, bus: b, leaveIn: Math.max(0, b.eb - t) };
+      t = b.arr;
+    } else {
+      metroUsed = true;
+      const ready = now + t + STATION_ENTRY, sc = scheduleMetro(l.from, l.to, ready);
+      // after the last train the next one is tomorrow morning: treat that as no metro tonight
+      if (!sc || sc.legs[0].dep - ready > MAX_METRO_WAIT) { steps.push({ l, none: true }); noBus = true; t += 1800; continue; }
+      // metro-first trips: leave in time to walk there and get through the station
+      if (!first) first = { l, train: sc.legs[0], leaveIn: Math.max(0, sc.legs[0].dep - STATION_ENTRY - now - t), leaveAt: sc.legs[0].dep - STATION_ENTRY - t };
+      steps.push({ l, sched: sc }); t = sc.arrive - now;
+    }
+  }
+  return { arrive: now + t, secs: t, walk, noBus, live, metroUsed, estimated, steps, first, leaveAt: first?.leaveAt ?? now };
+}
+function fareOf(o, legs) {
+  if (o.fare != null && legs === o.legs) return o.fare;
+  let sum = 0;
+  for (const l of legs) {
+    if (l.t === 'bus') { if (l.fare == null) return null; sum += l.fare; }
+    if (l.t === 'metro') { const f = metroFare(l.from, l.to); if (f == null) return null; sum += f; }
+  }
+  return sum;
+}
+const settled = () => state.liveSince && Date.now() - state.liveSince > SETTLE_MS;
+// "arrive by": start early, then push the departure as late as it can go and still arrive on time
+function scoreFor(legs) {
+  const w = state.when;
+  if (w.mode === 'now') return scoreLegs(legs);
+  if (w.mode === 'at') return scoreLegs(legs, toSecs(w.ms));
+  const by = toSecs(w.ms);
+  let base = by - staticSecs(legs) - 900, s = scoreLegs(legs, base), best = s.arrive <= by ? s : null;
+  for (let k = 0; k < 5; k++) {
+    const slack = by - s.arrive;
+    if (slack >= 0 && slack < 120) break;
+    base += slack - 60; s = scoreLegs(legs, base);
+    if (s.arrive <= by && (!best || s.leaveAt > best.leaveAt)) best = s;
+  }
+  const r = best || s; r.late = r.arrive > by; return r;
+}
+function scoreAll() {
+  for (const o of state.options) {
+    o.main = scoreFor(o.legs);
+    o.forkScore = o.fork ? scoreFor(o.fork.legs) : null;
+    o.useFork = !!o.fork && state.branch[o.key] === 'metro';
+    o.eff = o.useFork ? o.forkScore : o.main;
+    o.fareTotal = fareOf(o, o.useFork ? o.fork.legs : o.legs);
+  }
+}
+function rankKey(o) {
+  const s = o.eff, idle = s.noBus || s.late ? 1e7 : 0, prio = saved.prefs.priority;
+  if (state.when.mode === 'by' && prio === 'fastest') return idle - s.leaveAt - (s.metroUsed ? 180 : 0); // latest you can leave
+  if (prio === 'walk') return idle + s.walk * 10 + s.secs / 100;
+  if (prio === 'cheap') return idle + (o.fareTotal ?? 500) * 1000 + s.secs / 100;
+  return idle + s.secs - (s.metroUsed ? 180 : 0); // metro wins near-ties: it's more comfortable
+}
+function visibleOptions() {
+  const p = saved.prefs;
+  return state.options.filter(o => (p.twoBus || o.kind !== 'transfer') && (p.metro || !(o.kind === 'busmetro' || o.kind === 'metro')))
+    .sort((a, b) => rankKey(a) - rankKey(b));
+}
+
+// --- planning ---
 async function plan() {
   if (mode !== 'trip') return;
-  setStatus('Finding buses…', 'loading');
-  stopTripLive();
+  const { from, to } = state;
+  setStatus('Finding the fastest ways…', 'loading');
+  stopTripLive(); state.options = []; state.sel = null; state.branch = {}; state.showIdle = false;
+  $('routes').innerHTML = '<div class="empty">Finding the fastest ways to get there…</div>';
   try {
-    const { from, to } = state;
-    const r = await fetch(`/api/plan?flat=${from.lat}&flon=${from.lon}&tlat=${to.lat}&tlon=${to.lon}`);
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error);
-    // Night mode: the planner had little or nothing for "now", so /api/plan added routes planned for tomorrow morning
-    // (flagged `night`). Add direct routes between nearby stops too, then show only those with a bus running.
-    state.night = data.some(rt => rt.night);
-    state.showIdle = false;
-    if (state.night) {
-      const direct = await (await fetch(`/api/direct?flat=${from.lat}&flon=${from.lon}&tlat=${to.lat}&tlon=${to.lon}`)).json().catch(() => []);
-      const have = new Set(data.map(rt => rt.routeId));
-      const extra = await Promise.all((Array.isArray(direct) ? direct : []).filter(d => !have.has(d.routeId)).slice(0, 12).map(async d => {
-        const det = await (await fetch(`/api/route?id=${encodeURIComponent(d.routeId)}`)).json().catch(() => ({}));
-        return { ...d, stops: det.stops || [], tags: d.tags?.length ? d.tags : det.tags || [], connects: [], night: true };
-      }));
-      data.push(...extra);
-      data.sort((a, b) => (b.direct - a.direct) || ((a.walkTotal ?? 99) - (b.walkTotal ?? 99)));
-    }
+    metro ??= await metroData().catch(() => null);
+    const w = state.when, at = w.mode === 'at' ? w.ms : w.mode === 'by' ? Math.max(Date.now(), w.ms - 75 * 60e3) : null;
+    const q = `flat=${from.lat}&flon=${from.lon}&tlat=${to.lat}&tlon=${to.lon}${at ? `&at=${Math.round(at)}` : ''}`;
+    const dSt = metro ? stationsNear(to, 1500, 2) : [];
+    const cand = dSt.length ? boardingStations(from, dSt[0]) : [];
+    const [p, direct, tometro] = await Promise.all([
+      getJ(`/api/plan?${q}`).catch(e => ({ journeys: [], stops: {}, error: e })),
+      getJ(`/api/direct?${q}`).catch(() => []),
+      cand.length ? getJ(`/api/tometro?flat=${from.lat}&flon=${from.lon}&st=${cand.map(x => `${x.lat},${x.lon},${x.id}`).join(';')}`).catch(() => []) : [],
+    ]);
+    if (mode !== 'trip' || state.from !== from || state.to !== to || state.when !== w) return;
+    if (p.error && !direct.length && !tometro.length && !dSt.length) throw p.error;
+    state.night = !!p.night;
+    for (const [id, stops] of Object.entries(p.stops || {})) setStops(id, stops);
+    const opts = buildOptions(p.journeys || [], direct, tometro, dSt, from, to);
+    // stop lists for buses the planner didn't cover, for ride times and metro forks
+    const missing = [...new Set(opts.flatMap(o => o.legs.filter(l => l.t === 'bus' && !state.stopLists.has(l.routeId)).map(l => l.routeId)))].slice(0, 24);
+    await Promise.all(missing.map(async id => setStops(id, (await getJ(`/api/route?id=${encodeURIComponent(id)}`).catch(() => null))?.stops || [])));
     if (mode !== 'trip' || state.from !== from || state.to !== to) return;
-    state.routes = data.map((rt, i) => {
-      const idx = new Map(rt.stops.map((s, k) => [s.id, k]));
-      return { ...rt, color: COLORS[i % COLORS.length], idx, boardIdx: rt.board ? idx.get(rt.board.id) : undefined };
-    });
-    state.selected = null;
-    renderRoutes(); drawRoutes(); connectLive();
+    state.options = prune(opts);
+    computeForks(dSt[0], from, to);
+    if (planned()) state.liveSince = Date.now() - SETTLE_MS; // no live data for a later time
+    scoreAll(); renderTrip(); drawTrip();
+    if (!planned()) connectTrip();
     setSheet('half');
-    const b = L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]).pad(0.25);
-    map.fitBounds(b, { paddingBottomRight: [0, mq.matches ? sheet.h : 0] });
+    map.fitBounds(L.latLngBounds([[from.lat, from.lon], [to.lat, to.lon]]).pad(0.25), { paddingBottomRight: [0, mq.matches ? sheet.h : 0] });
   } catch (e) {
-    setStatus('Couldn\'t plan this trip: ' + e.message);
+    setStatus('Couldn\'t plan this trip: ' + (e.message || e));
     $('routes').innerHTML = '<div class="empty">Something went wrong. Try a different start or destination.</div>';
   }
 }
 
-// routes passing the Direct only / Walk up to filters; visibleRoutes() also hides night routes with nothing running
-function filteredRoutes() {
-  const maxWalk = +$('maxWalk').value;
-  return state.routes.filter(r => (!$('onlyDirect').checked || r.direct) && !(r.walkTotal > maxWalk));
+// live subscriptions: every bus leg's positions + ETAs at its boarding and drop-off stops (+ fork stops for the top few)
+function connectTrip() {
+  const want = new Set();
+  for (const [n, o] of [...state.options].sort((a, b) => rankKey(a) - rankKey(b)).entries()) {
+    if (n >= 46) break;
+    const legs = [...o.legs, ...(o.fork && n < 10 ? o.fork.legs : [])];
+    for (const l of legs) if (l.t === 'bus') want.add('routes:' + l.routeId).add(`etas:${l.board.id}:${l.routeId}`).add(`etas:${l.alight.id}:${l.routeId}`);
+  }
+  if (!want.size) { state.liveSince = Date.now() - SETTLE_MS; return; }
+  for (const ref of want) state.refs.add(ref);
+  const es = state.es = liveSocket(state.refs, (parts, key, d) => {
+    if (parts[0] === 'routes' && d._latitude != null)
+      state.vehicles.set(key, { key, routeId: parts[1], vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
+    else if (parts[0] === 'etas') state.etas.set(`${parts[1]}|${parts[2]}|${key}`, d.eta);
+  }, () => {
+    if (!state.liveSince) {
+      state.liveSince = Date.now();
+      setTimeout(() => { if (state.es === es) { scoreAll(); renderTrip(); drawTrip(); } }, SETTLE_MS + 300);
+    }
+    scheduleTrip();
+  });
 }
-function visibleRoutes() { return filteredRoutes().filter(r => state.showIdle || !idleAtNight(r)); }
-// night mode: give the live snapshot a few seconds before deciding a route has nothing running
-const nightSettled = () => state.night && state.liveSince && Date.now() - state.liveSince > 6000;
-const liveOn = routeId => [...state.vehicles.values()].some(v => v.routeId === routeId);
-const idleAtNight = r => r.night && nightSettled() && !busesFor(r).some(v => !v.passed);
-// rank in night mode: a bus coming to your stop, then any live bus, then nothing
-function nightRank(r) {
-  const buses = busesFor(r), next = buses.filter(v => !v.passed && v.etaToStop != null).sort((a, b) => a.etaToStop - b.etaToStop)[0];
-  return next ? next.etaToStop : buses.some(v => !v.passed) ? 1e6 : buses.length ? 2e6 : 3e6;
-}
+let tripT;
+function scheduleTrip() { if (!tripT) tripT = setTimeout(() => { tripT = null; if (mode === 'trip') { scoreAll(); renderTrip(); redrawTripBuses(); } }, 800); }
+setInterval(() => { if (mode === 'trip' && state.options.length) { scoreAll(); renderTrip(); } }, 30000); // metro countdowns
 
-function renderRoutes() {
-  let list = visibleRoutes();
-  const idle = state.night && !state.showIdle ? filteredRoutes().filter(idleAtNight).length : 0;
-  let banner = '';
-  if (state.night) {
-    if (nightSettled()) list = list.slice().sort((a, b) => nightRank(a) - nightRank(b));
-    const running = list.some(r => busesFor(r).some(v => !v.passed));
-    banner = `<div class="nightbar">🌙 <b>Few or no scheduled trips right now.</b> Showing routes with buses still running.${
-      nightSettled() && !running ? '<br><span class="warn">Nothing is heading your way on these routes right now. Try again in the morning.</span>' : ''}<br>
-      <small>Night routes come from tomorrow's timetable; only buses that are live right now are shown.</small></div>`;
+// --- rendering ---
+const mins = secs => Math.max(1, Math.round(secs / 60));
+function lineChip(line) { const L2 = metro.lines[line]; return `<span class="mpill${lightLine(L2.color) ? ' light' : ''}" style="--mc:${L2.color}">${L2.name}</span>`; }
+function stripHtml(s) {
+  const parts = [];
+  for (const st of s.steps) {
+    const l = st.l;
+    if (l.t === 'walk') { if (st.secs >= 60) parts.push(`🚶${mins(st.secs)}`); }
+    else if (l.t === 'bus') parts.push(`<span class="badge" style="--rc:${routeColor(l.routeId)}">${esc(l.name)}</span>`);
+    else parts.push(st.sched ? st.sched.legs.map(x => lineChip(x.line)).join('') : '🚇');
   }
-  const more = idle ? `<button class="idle-toggle" id="showIdle">${idle} more route${idle === 1 ? '' : 's'} with no bus running now · show</button>` : '';
-  if (!list.length) {
-    $('routes').innerHTML = banner + (state.night && !nightSettled() ? '<div class="empty">Checking which buses are still running…</div>' : `<div class="empty">${state.routes.length ? 'No routes match these filters.<br>Try allowing a longer walk.' : 'No bus routes found between these points right now.'}</div>`) + more;
-    return;
+  return parts.join('<i class="sep">›</i>');
+}
+function leaveText(s) {
+  if (planned()) {
+    if (s.noBus) return '<span class="warn">No metro at that time</span>';
+    return `Leave <b>${fmtClock(s.leaveAt)}</b>${s.late ? ` · <span class="warn">arrives after ${fmtClock(toSecs(state.when.ms))}</span>` : ''}`;
   }
-  $('routes').innerHTML = banner + list.map(r => {
-    const buses = busesFor(r);
-    const coming = buses.filter(v => !v.passed);
-    const rows = buses.sort((a, b) => etaSort(a) - etaSort(b)).slice(0, 8).map(v =>
-      `<div class="bus"><span>${v.vNo || 'Bus'}${v.halted ? ' · halted' : ''}</span><span>${busLabel(v)}</span></div>`).join('');
-    const next = buses.filter(v => !v.passed && v.etaToStop != null).sort((a, b) => a.etaToStop - b.etaToStop)[0];
-    const sel = state.selected === r.routeId, off = state.selected && !sel;
-    return `<div class="route${sel ? ' sel' : ''}${off ? ' off' : ''}" data-id="${r.routeId}" style="--rc:${r.color}">
-      <div class="rtop"><span class="badge">${r.name}</span>
-        ${r.direct ? '<span class="tag direct">DIRECT</span>' : '<span class="tag">TRANSFER</span>'}
-        ${r.walkTotal != null ? `<span class="tag walk">${r.walkTotal} min walk</span>` : ''}
-        ${r.fare != null ? `<span class="tag fare">₹${r.fare}</span>` : ''}
-        ${serviceTags(r.tags, r.name)}
-        <span class="live-count">${next ? `next in <b>${fmtEta(next.etaToStop)}</b>` : `<b>${coming.length}</b> coming`}</span></div>
-      <div class="rstops">${r.walkToBoard != null ? `Walk ${r.walkToBoard} min to` : 'Board at'} <b>${r.board?.name || '?'}</b><br>Get off at <b>${r.alight?.name || '?'}</b>${r.travelTime ? ` · ~${Math.round(r.travelTime / 60)} min ride` : ''}${r.walkFromAlight ? `, then walk ${r.walkFromAlight} min` : ''}${!r.direct && r.totalFare != null ? `<br>₹${r.totalFare} for the whole trip` : ''}${
-        !r.direct && r.connects?.length && (state.night ? nightSettled() : state.liveSince && Date.now() - state.liveSince > 6000) && !r.connects.some(c => liveOn(c.routeId))
-          ? `<br><span class="warn">⚠ No bus running on the connecting route${r.connects.length > 1 ? 's' : ''} (${r.connects.map(c => esc(c.name)).join(', ')}) right now.</span>` : ''}</div>
-      <div class="buses">${rows || '<div class="bus"><span>No live buses yet</span><span></span></div>'}
-        ${r.board ? `<div class="tacts"><button class="tbtn" data-notify="${r.routeId}">🔔 Notify me before the next bus reaches ${esc(r.board.name)}</button></div>` : ''}</div>
-    </div>`;
-  }).join('') + more;
+  if (s.noBus && settled()) return '<span class="warn">No bus coming yet</span>';
+  if (!s.first) return '';
+  if (s.first.bus) { const m = Math.round(s.first.leaveIn / 60); return m <= 0 ? '<b>Leave now</b>' : `Leave in <b>${m} min</b>`; }
+  const m = Math.round(s.first.leaveIn / 60);
+  return `${m <= 0 ? '<b>Leave now</b>' : `Leave in <b>${m} min</b>`} for the <b>${fmtClock(s.first.train.dep)}</b> train`;
+}
+function optCard(o, hero) {
+  const s = o.eff, sel = state.sel === o.key, idle = s.noBus && settled();
+  const firstBus = s.steps.find(x => x.bus)?.l;
+  const meta = [leaveText(s), `🚶 ${mins(s.walk)} min`, o.fareTotal != null ? `₹${o.fareTotal}` : '',
+    s.live ? '<span class="chip-live">● live</span>' : '', planned() ? `<span class="sched">${s.estimated ? 'estimated' : 'scheduled'}</span>` : s.metroUsed ? '<span class="sched">metro scheduled</span>' : '',
+    firstBus ? serviceTags(firstBus.tags, firstBus.name) : '', o.night ? '🌙' : ''].filter(Boolean).join(' · ');
+  return `<div class="opt${hero ? ' hero' : ''}${sel ? ' sel' : ''}${idle ? ' idle' : ''}" data-opt="${esc(o.key)}">
+    <div class="otop"><div class="ostrip">${stripHtml(s)}</div>
+      <div class="oarr"><small>Arrive</small><b>${idle ? '—' : fmtClock(s.arrive)}</b><small>${idle ? '' : mins(s.arrive - (planned() ? s.leaveAt : s.arrive - s.secs)) + ' min'}</small></div></div>
+    <div class="ometa">${meta}</div>${forkHtml(o)}${sel ? stepsHtml(o) : ''}</div>`;
+}
+function forkHtml(o) {
+  if (!o.fork || !o.forkScore || !o.main) return '';
+  const alt = o.useFork ? o.main : o.forkScore, cur = o.useFork ? o.forkScore : o.main;
+  // arrive-by compares when you'd have to leave; otherwise when you'd arrive
+  const by = state.when.mode === 'by', diff = Math.round((by ? cur.leaveAt - alt.leaveAt : alt.arrive - cur.arrive) / 60);
+  const d = alt.noBus || cur.noBus ? '' : ` (${diff === 0 ? 'same time' : by ? (diff < 0 ? `leave ${-diff} min later` : `leave ${diff} min earlier`) : diff < 0 ? `${-diff} min sooner` : `${diff} min later`})`;
+  const what = o.useFork ? `🚌 Or stay on the bus to the end` : `🔀 Or get off at <b>${esc(o.fork.stop.name)}</b> and take ${alt.steps.find(x => x.sched)?.sched.legs.map(x => lineChip(x.line)).join('') || 'the metro'} to ${esc(o.fork.dst.name)}`;
+  return `<div class="fork"><span>${what} · arrive <b>${alt.noBus ? '—' : fmtClock(alt.arrive)}</b>${d}</span><button class="tbtn" data-branch="${esc(o.key)}">${o.useFork ? 'Stay on bus' : 'Take metro'}</button></div>`;
+}
+function stepsHtml(o) {
+  const s = o.eff, rows = [];
+  for (const st of s.steps) {
+    const l = st.l;
+    if (l.t === 'walk') { if (st.secs >= 30) rows.push(`<div class="step"><i>🚶</i><span>Walk ${mins(st.secs)} min to <b>${esc(l.to.name || 'your destination')}</b></span></div>`); }
+    else if (l.t === 'bus' && st.plan) rows.push(`<div class="step"><i>🚌</i><span><b>${esc(l.name)}</b> from ${esc(l.board.name)} to ${esc(l.alight.name)}<br><small>${
+      st.plan.how === 'scheduled' ? 'Scheduled' : 'Estimated'} ${fmtClock(st.plan.dep)} → ${fmtClock(st.plan.arr)} · ride ${mins(st.ride)} min${st.wait > 90 ? ` · wait ~${mins(st.wait)} min` : ''}</small></span></div>`);
+    else if (l.t === 'bus') rows.push(`<div class="step"><i>🚌</i><span><b>${esc(l.name)}</b> from ${esc(l.board.name)} to ${esc(l.alight.name)}<br><small>${st.none
+      ? 'No live bus coming yet'
+      : `${esc(st.bus.vNo || 'Bus')} reaches your stop in ${fmtEta(st.bus.eb)} (wait ${mins(Math.max(0, st.wait))} min) · ride ${mins(st.ride)} min${st.bus.liveRide ? ' (live)' : ' (estimated)'}`}</small></span></div>`);
+    else if (st.sched) for (const [k, x] of st.sched.legs.entries()) {
+      const L2 = metro.lines[x.line], name = i => L2.stations[i][1];
+      rows.push(`<div class="step"><i>🚇</i><span>${k ? 'Change to ' : ''}${lineChip(x.line)} ${esc(name(x.i))} <b>${fmtClock(x.dep)}</b> → ${esc(name(x.j))} <b>${fmtClock(x.arr)}</b><br><small>scheduled · ${Math.abs(x.j - x.i)} stops</small></span></div>`);
+    } else rows.push(`<div class="step"><i>🚇</i><span class="warn">No metro train within the hour (service has ended for tonight)</span></div>`);
+  }
+  const fb = s.steps.find(x => x.l.t === 'bus')?.l;
+  const acts = fb && !planned() ? `<div class="tacts"><button class="tbtn" data-notify="${esc(o.key)}">🔔 Notify me</button>${s.first?.bus ? `<button class="tbtn" data-track="${esc(o.key)}">Track this bus</button>` : ''}</div>` : '';
+  return `<div class="steps">${rows.join('')}${acts}</div>`;
+}
+function renderTrip() {
+  if (mode !== 'trip') return;
+  const el = $('routes'), all = visibleOptions();
+  if (!state.options.length) { el.innerHTML = '<div class="empty">No way found between these points right now.</div>'; return; }
+  const ready = settled(), idleN = ready ? all.filter(o => o.eff.noBus).length : 0;
+  const shown = ready && !state.showIdle ? all.filter(o => !o.eff.noBus) : all;
+  let html = '';
+  if (state.night && !planned()) html += `<div class="nightbar">🌙 <b>Few or no scheduled trips right now.</b> Showing only buses that are still running.${ready && !shown.length ? '<br><span class="warn">Nothing is heading your way right now. Try again in the morning.</span>' : ''}</div>`;
+  if (!ready) html += '<div class="thead">Checking live buses… times update as they come in</div>';
+  const w = state.when, whenTxt = w.mode !== 'now' && new Date(w.ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  if (w.mode !== 'now') html += `<div class="thead">Planned for ${w.mode === 'by' ? 'arriving by' : 'leaving at'} <b>${whenTxt}</b> · timetable times, not live</div>`;
+  const hero = shown[0];
+  if (hero) html += `<div class="herohead">${w.mode === 'by' ? 'Leave latest' : w.mode === 'at' ? 'Best way then' : 'Best way right now'}</div>` + optCard(hero, true);
+  for (const kind of ['bus', 'busmetro', 'metro', 'transfer']) {
+    const list = shown.filter(o => o !== hero && o.kind === kind).slice(0, kind === 'bus' ? 6 : 4);
+    if (list.length) html += `<div class="ghead">${KIND_LABEL[kind]}</div>` + list.map(o => optCard(o, false)).join('');
+  }
+  if (idleN && !state.showIdle) html += `<button class="idle-toggle" id="showIdle">${idleN} more option${idleN === 1 ? '' : 's'} with no bus coming now · show</button>`;
+  if (!shown.length && !idleN) {
+    const hidden = state.options.filter(o => o.kind === 'transfer').length;
+    html += `<div class="empty">${!saved.prefs.twoBus && hidden ? `Every way there needs 2 buses (${hidden} found).<br>Tick <b>2 buses</b> above to see them.` : 'No options match your settings. Try allowing metro or 2 buses.'}</div>`;
+  }
+  el.innerHTML = html;
+  const best = hero && !hero.eff.noBus ? ` · best arrives <b style="color:var(--text)">${fmtClock(hero.eff.arrive)}</b>` : '';
+  if (w.mode !== 'now') return setStatus(`<b style="color:var(--text)">${shown.length}</b> ways · ${w.mode === 'by' ? 'arrive by' : 'leave at'} ${whenTxt}${hero && !hero.eff.noBus ? ` · leave <b style="color:var(--text)">${fmtClock(hero.eff.leaveAt)}</b>` : ''}`);
+  setStatus(`<b style="color:var(--text)">${shown.length}</b> ways to get there${best}${ready ? ' · live' : ''}${state.night ? ' · 🌙' : ''}`, ready ? 'live' : 'loading');
 }
 $('routes').addEventListener('click', e => {
-  if (e.target.closest('#showIdle')) { state.showIdle = true; renderRoutes(); drawRoutes(); redrawBuses(); return; }
-  const n = e.target.closest('[data-notify]');
-  if (n) {
-    const r = state.routes.find(x => x.routeId === n.dataset.notify);
-    return r && addAlert({ kind: 'live', label: `${r.name} at ${r.board.name}`, stopId: r.board.id, routeId: r.routeId, key: null });
+  const t = e.target;
+  if (t.closest('#showIdle')) { state.showIdle = true; renderTrip(); return; }
+  const find = el => state.options.find(o => o.key === el.closest('[data-opt]')?.dataset.opt);
+  const br = t.closest('[data-branch]');
+  if (br) { const o = find(br); state.branch[o.key] = o.useFork ? 'bus' : 'metro'; scoreAll(); renderTrip(); drawTrip(); return; }
+  const nt = t.closest('[data-notify]');
+  if (nt) {
+    const o = find(nt), st = o.eff.steps.find(x => x.l.t === 'bus'), l = st.l;
+    return addAlert({ kind: 'live', label: `${l.name} at ${l.board.name}`, stopId: l.board.id, routeId: l.routeId, key: st.bus?.key || null });
   }
-  const el = e.target.closest('.route');
-  if (!el) return;
-  state.selected = state.selected === el.dataset.id ? null : el.dataset.id;
-  renderRoutes(); drawRoutes(); redrawBuses();
-  const r = state.routes.find(x => x.routeId === state.selected);
-  if (r?.board) flyToVisible([r.board.lat, r.board.lon], 14);
+  const tr = t.closest('[data-track]');
+  if (tr) { const o = find(tr), st = o.eff.steps.find(x => x.bus); return st && trackBus(st.l.routeId, st.bus.key); }
+  const card = t.closest('[data-opt]');
+  if (!card) return;
+  state.sel = state.sel === card.dataset.opt ? null : card.dataset.opt;
+  renderTrip(); drawTrip();
+  const o = state.options.find(x => x.key === state.sel);
+  if (o) { const pts = drawnPoints(o); if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.15), { paddingBottomRight: [0, mq.matches ? sheet.h : 0] }); }
 });
+
+// --- map: the selected option (or the best few) leg by leg ---
+function legPoints(l) {
+  if (l.t === 'walk') return [[l.from.lat, l.from.lon], [l.to.lat, l.to.lon]];
+  if (l.t === 'bus') {
+    const sl = state.stopLists.get(l.routeId), a = sl?.idx.get(l.board.id), b = sl?.idx.get(l.alight.id);
+    return a != null && b != null && b > a ? sl.stops.slice(a, b + 1).map(x => [x.lat, x.lon]) : [[l.board.lat, l.board.lon], [l.alight.lat, l.alight.lon]];
+  }
+  return [];
+}
+function drawnPoints(o) { return (o.useFork ? o.fork.legs : o.legs).flatMap(legPoints).concat(metroPoints(o.eff)); }
+function metroPoints(s) {
+  return s.steps.filter(x => x.sched).flatMap(x => x.sched.legs.flatMap(t => {
+    const st = metro.lines[t.line].stations, out = [];
+    for (let k = Math.min(t.i, t.j); k <= Math.max(t.i, t.j); k++) out.push([st[k][2], st[k][3]]);
+    return out;
+  }));
+}
+function drawTrip() {
+  layers.lines.clearLayers(); layers.stops.clearLayers();
+  const vis = visibleOptions().filter(o => !(o.eff.noBus && settled()));
+  const show = state.sel ? state.options.filter(o => o.key === state.sel) : vis.slice(0, 4);
+  show.forEach((o, n) => {
+    const strong = state.sel || n === 0, legs = o.useFork ? o.fork.legs : o.legs;
+    for (const l of legs) {
+      if (l.t === 'walk') L.polyline(legPoints(l), { color: '#cbd5e1', weight: 2, dashArray: '4 6', opacity: strong ? .85 : .4 }).addTo(layers.lines);
+      if (l.t === 'bus') {
+        L.polyline(legPoints(l), { color: routeColor(l.routeId), weight: strong ? 5 : 3, opacity: strong ? .95 : .45 }).addTo(layers.lines);
+        if (strong) for (const x of [l.board, l.alight]) L.circleMarker([x.lat, x.lon], { radius: 6, color: '#fff', weight: 2, fillColor: routeColor(l.routeId), fillOpacity: 1 }).bindTooltip(x.name).addTo(layers.stops);
+      }
+    }
+    for (const x of o.eff.steps.filter(y => y.sched)) for (const t of x.sched.legs) {
+      const st = metro.lines[t.line].stations, pts = [];
+      for (let k = Math.min(t.i, t.j); k <= Math.max(t.i, t.j); k++) pts.push([st[k][2], st[k][3]]);
+      L.polyline(pts, { color: metro.lines[t.line].color, weight: strong ? 6 : 3, opacity: strong ? .95 : .45 }).addTo(layers.lines);
+    }
+  });
+  redrawTripBuses();
+}
+// the bus you'd catch on each drawn option (bright), other buses heading to the same stop (dim)
+function redrawTripBuses() {
+  const vis = visibleOptions().filter(o => !(o.eff.noBus && settled()));
+  const show = state.sel ? state.options.filter(o => o.key === state.sel) : vis.slice(0, 4);
+  const want = new Map();
+  for (const o of show) for (const st of o.eff.steps) {
+    if (st.l.t !== 'bus') continue;
+    for (const v of state.vehicles.values()) {
+      if (v.routeId !== st.l.routeId || !(state.etas.get(`${st.l.board.id}|${v.routeId}|${v.key}`) >= 0)) continue;
+      const mine = st.bus?.key === v.key;
+      if (!want.has(v.key) || mine) want.set(v.key, { v, l: st.l, mine });
+    }
+  }
+  for (const [k, m] of busMarkers) if (!want.has(k)) { layers.buses.removeLayer(m); busMarkers.delete(k); }
+  for (const [k, { v, l, mine }] of want) {
+    const c = routeColor(l.routeId), look = `${c}|${v.bearing}|${mine}|${v.halted}`;
+    let m = busMarkers.get(k);
+    if (!m) { m = L.marker([v.lat, v.lon], { icon: busIcon(c, l.name, v.bearing, !mine, v.halted), zIndexOffset: mine ? 800 : 300 }).addTo(layers.buses); m._look = look; busMarkers.set(k, m); }
+    else { m.setLatLng([v.lat, v.lon]); if (m._look !== look) { m.setIcon(busIcon(c, l.name, v.bearing, !mine, v.halted)); m._look = look; m.setZIndexOffset(mine ? 800 : 300); } }
+  }
+}
 
 // --- saved places: chips under "To" ---
 function renderChips() {
@@ -620,75 +1030,11 @@ $('chips').addEventListener('click', e => {
   }
 });
 
-function drawRoutes() {
-  layers.lines.clearLayers(); layers.stops.clearLayers();
-  for (const r of visibleRoutes()) {
-    if (state.selected && state.selected !== r.routeId) continue;
-    // only the part of the route you actually ride: boarding stop -> alighting stop
-    const a = r.boardIdx, b = r.alight ? r.idx.get(r.alight.id) : undefined;
-    const seg = a != null && b != null && b > a ? r.stops.slice(a, b + 1) : [r.board, r.alight].filter(Boolean);
-    const pts = seg.map(s => [s.lat, s.lon]);
-    if (pts.length > 1) L.polyline(pts, { color: r.color, weight: state.selected ? 5 : 4, opacity: state.selected ? .95 : .7 }).addTo(layers.lines);
-    // walking legs: you -> boarding stop, alighting stop -> destination
-    const walk = { color: '#cbd5e1', weight: 2, dashArray: '4 6', opacity: .8 };
-    if (state.from && r.board) L.polyline([[state.from.lat, state.from.lon], [r.board.lat, r.board.lon]], walk).addTo(layers.lines);
-    if (state.to && r.alight) L.polyline([[r.alight.lat, r.alight.lon], [state.to.lat, state.to.lon]], walk).addTo(layers.lines);
-    for (const s of [r.board, r.alight].filter(Boolean))
-      L.circleMarker([s.lat, s.lon], { radius: 6, color: '#fff', weight: 2, fillColor: r.color, fillOpacity: 1 }).bindTooltip(s.name).addTo(layers.stops);
-  }
-}
-
-// --- live buses ---
-function enrich(v) {
-  const r = state.routes.find(x => x.routeId === v.routeId);
-  const ni = r?.idx.get(v.nextStop);
-  v.passed = r?.boardIdx != null && ni != null && ni > r.boardIdx;
-  const e = state.etas.get(v.key);
-  v.etaToStop = e && e.etaToStop >= 0 ? e.etaToStop : null;
-  if (e && e.etaToStop < 0) v.passed = true;
-  if (e && e.etaToStop >= 0) v.passed = false;
-  v.stopsAway = r?.boardIdx != null && ni != null && !v.passed ? r.boardIdx - ni : null;
-  v.nextStopName = ni != null ? r.stops[ni].name : null;
-  return v;
-}
 function fmtEta(s) {
   if (s == null) return null;
   if (s < 60) return 'arriving now';
   const m = Math.round(s / 60);
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-function busLabel(v) {
-  if (v.passed) return 'passed your stop';
-  const eta = fmtEta(v.etaToStop);
-  const stops = v.stopsAway != null ? `${v.stopsAway} stop${v.stopsAway === 1 ? '' : 's'}` : null;
-  return [eta, stops].filter(Boolean).join(' · ') || 'en route';
-}
-const etaSort = v => v.passed ? 1e9 : v.etaToStop ?? (v.stopsAway != null ? 5e8 + v.stopsAway : 9e8);
-function busesFor(r) { return [...state.vehicles.values()].filter(v => v.routeId === r.routeId).map(enrich); }
-
-function connectLive() {
-  const ids = state.routes.map(r => r.routeId);
-  if (!ids.length) return setStatus('No bus routes found');
-  // Chalo's live socket (Socket.IO v2). refs: 'routes:<routeId>' = bus positions,
-  // 'etas:<stopId>:<routeId>' = seconds until each bus reaches that stop (-1 = passed).
-  const refs = state.routes.flatMap(r => ['routes:' + r.routeId, ...(r.board ? [`etas:${r.board.id}:${r.routeId}`] : [])]);
-  // connecting legs of transfers that aren't listed themselves: positions only, to tell whether they're running
-  const listed = new Set(ids);
-  for (const r of state.routes) for (const c of r.connects || []) if (!listed.has(c.routeId)) { listed.add(c.routeId); refs.push('routes:' + c.routeId); }
-  state.liveSince = null;
-  const es = state.es = liveSocket(refs, (parts, key, d) => {
-    if (parts[0] === 'routes' && d._latitude != null) {
-      state.vehicles.set(key, { key, routeId: parts[1], vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
-    } else if (parts[0] === 'etas') {
-      state.etas.set(key, { key, stopId: parts[1], routeId: parts[2], etaToStop: d.eta, dist: d.dist, ts: d.tS });
-    }
-  }, () => {
-    if (!state.liveSince) {
-      state.liveSince = Date.now();
-      setTimeout(() => { if (state.es === es) { renderRoutes(); drawRoutes(); redrawBuses(); updateLiveStatus(); } }, 6500);
-    }
-    redrawBuses(); scheduleRender();
-  });
 }
 // Chalo's live socket (Socket.IO v2). Subscribe payloads must be JSON strings; the snapshot's payloads are
 // strings and later deltas are objects. `refs` is re-subscribed on every (re)connect, so callers can add to it.
@@ -711,33 +1057,6 @@ function liveSocket(refs, onData, onBatch, quiet = false) {
     onBatch(true);
   });
   return sock;
-}
-let renderT;
-function scheduleRender() { clearTimeout(renderT); renderT = setTimeout(() => { renderRoutes(); updateLiveStatus(); }, 400); }
-function updateLiveStatus() {
-  if (mode !== 'trip') return;
-  const vis = new Set(visibleRoutes().map(r => r.routeId));
-  const n = [...state.vehicles.values()].map(enrich).filter(v => vis.has(v.routeId) && !v.passed).length;
-  setStatus(`<b style="color:var(--text)">${n}</b> buses heading your way across <b style="color:var(--text)">${vis.size}</b> routes · live${state.night ? ' · 🌙 night' : ''}`, 'live');
-}
-
-function redrawBuses() {
-  const vis = new Set(visibleRoutes().map(r => r.routeId));
-  const hidePassed = $('hidePassed').checked;
-  for (const v of state.vehicles.values()) {
-    enrich(v);
-    const r = state.routes.find(x => x.routeId === v.routeId);
-    const show = r && vis.has(v.routeId) && !(hidePassed && v.passed) && (!state.selected || state.selected === v.routeId);
-    let m = busMarkers.get(v.key);
-    if (!show) { if (m) { layers.buses.removeLayer(m); busMarkers.delete(v.key); } continue; }
-    const html = `<b>${r.name}</b> · ${v.vNo || ''}<br>${v.passed ? 'Already passed your stop' : `<b>${busLabel(v)}</b> to ${r.board?.name || 'your stop'}`}${v.nextStopName ? `<br><span style="color:var(--muted)">Next: ${v.nextStopName}</span>` : ''}${v.halted ? '<br><span style="color:var(--warn)">Halted</span>' : ''}`;
-    const look = `${r.color}|${v.bearing}|${v.passed}|${v.halted}`;
-    if (!m) { m = L.marker([v.lat, v.lon], { icon: busIcon(r.color, r.name, v.bearing, v.passed, v.halted), zIndexOffset: v.passed ? 0 : 500 }).bindPopup(html).addTo(layers.buses); m._look = look; busMarkers.set(v.key, m); }
-    else {
-      m.setLatLng([v.lat, v.lon]); m.setPopupContent(html);
-      if (m._look !== look) { m.setIcon(busIcon(r.color, r.name, v.bearing, v.passed, v.halted)); m._look = look; }
-    }
-  }
 }
 // --- route tracking: one route end to end, every live bus on it, follow a bus stop by stop ---
 let mode = 'trip';
@@ -1359,8 +1678,29 @@ $('radius').onchange = () => {
 // "Open in Track route": that route in the Track tab, with this bus already followed
 function trackBus(routeId, key) { track.route = { routeId }; track.pendingFollow = key; setMode('route'); }
 
-$('onlyDirect').onchange = $('maxWalk').onchange = () => { renderRoutes(); drawRoutes(); redrawBuses(); updateLiveStatus(); };
-$('hidePassed').onchange = redrawBuses;
+// "Leave now" (live) / "Leave at" / "Arrive by" (planned from timetables)
+const toLocalInput = d => new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
+function defaultWhen() { const d = new Date(Date.now() + 30 * 60e3); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0); return d; }
+function applyWhen() {
+  const m = $('whenMode').value, ms = new Date($('whenAt').value).getTime();
+  state.when = m === 'now' || !isFinite(ms) ? { mode: 'now' } : { mode: m, ms };
+  if (state.from && state.to) plan();
+}
+$('whenMode').onchange = () => {
+  const m = $('whenMode').value;
+  $('whenAt').style.display = m === 'now' ? 'none' : '';
+  if (m !== 'now' && !$('whenAt').value) $('whenAt').value = toLocalInput(defaultWhen());
+  applyWhen();
+};
+$('whenAt').onchange = applyWhen;
+
+// Plan trip controls, remembered in this browser
+saved.prefs = { priority: 'fastest', metro: true, twoBus: false, ...(saved.prefs || {}) };
+$('prio').value = saved.prefs.priority; $('optMetro').checked = saved.prefs.metro; $('optTwoBus').checked = saved.prefs.twoBus;
+$('prio').onchange = $('optMetro').onchange = $('optTwoBus').onchange = () => {
+  Object.assign(saved.prefs, { priority: $('prio').value, metro: $('optMetro').checked, twoBus: $('optTwoBus').checked }); persist();
+  renderTrip(); drawTrip();
+};
 
 // --- mobile bottom sheet ---
 const sheet = { mode: 'peek', h: 0 };
