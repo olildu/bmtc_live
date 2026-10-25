@@ -1,0 +1,14 @@
+package defpackage;
+
+import android.view.View;
+import android.view.WindowInsets;
+import androidx.core.view.ViewGroupCompat;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes4.dex */
+public final /* synthetic */ class so1 implements View.OnApplyWindowInsetsListener {
+    @Override // android.view.View.OnApplyWindowInsetsListener
+    public final WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
+        return ViewGroupCompat.lambda$installCompatInsetsDispatch$0(view, windowInsets);
+    }
+}

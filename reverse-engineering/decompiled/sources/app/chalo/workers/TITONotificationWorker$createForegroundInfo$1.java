@@ -1,0 +1,28 @@
+package app.chalo.workers;
+
+import kotlin.Metadata;
+import kotlin.coroutines.jvm.internal.ContinuationImpl;
+import kotlin.coroutines.jvm.internal.DebugMetadata;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes6.dex */
+@Metadata(k = 3, mv = {2, 0, 0}, xi = 48)
+@DebugMetadata(c = "app.chalo.workers.TITONotificationWorker", f = "TITONotificationWorker.kt", l = {176}, m = "createForegroundInfo", v = 1)
+final class TITONotificationWorker$createForegroundInfo$1 extends ContinuationImpl {
+    int label;
+    /* synthetic */ Object result;
+    final /* synthetic */ TITONotificationWorker this$0;
+
+    /* JADX WARN: 'super' call moved to the top of the method (can break code semantics) */
+    public TITONotificationWorker$createForegroundInfo$1(TITONotificationWorker tITONotificationWorker, ContinuationImpl continuationImpl) {
+        super(continuationImpl);
+        this.this$0 = tITONotificationWorker;
+    }
+
+    @Override // kotlin.coroutines.jvm.internal.BaseContinuationImpl
+    public final Object invokeSuspend(Object obj) {
+        this.result = obj;
+        this.label |= Integer.MIN_VALUE;
+        return TITONotificationWorker.d(this.this$0, null, 0L, null, false, this);
+    }
+}

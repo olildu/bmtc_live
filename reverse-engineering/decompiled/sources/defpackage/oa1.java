@@ -1,0 +1,11 @@
+package defpackage;
+
+import androidx.compose.runtime.SnapshotMutationPolicy;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes4.dex */
+public abstract /* synthetic */ class oa1 {
+    public static Object a(SnapshotMutationPolicy snapshotMutationPolicy, Object obj, Object obj2, Object obj3) {
+        return null;
+    }
+}

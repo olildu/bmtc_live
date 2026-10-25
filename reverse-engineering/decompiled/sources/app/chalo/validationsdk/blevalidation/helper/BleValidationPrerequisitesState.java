@@ -1,0 +1,28 @@
+package app.chalo.validationsdk.blevalidation.helper;
+
+import kotlin.Metadata;
+import kotlin.enums.EnumEntries;
+import kotlin.enums.EnumEntriesKt;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes6.dex */
+@Metadata(d1 = {"\u0000\f\n\u0002\u0018\u0002\n\u0002\u0010\u0010\n\u0002\b\u000e\b\u0086\u0081\u0002\u0018\u00002\b\u0012\u0004\u0012\u00020\u00000\u0001B\t\b\u0002¢\u0006\u0004\b\u0002\u0010\u0003j\u0002\b\u0004j\u0002\b\u0005j\u0002\b\u0006j\u0002\b\u0007j\u0002\b\bj\u0002\b\tj\u0002\b\nj\u0002\b\u000bj\u0002\b\fj\u0002\b\rj\u0002\b\u000e¨\u0006\u000f"}, d2 = {"Lapp/chalo/validationsdk/blevalidation/helper/BleValidationPrerequisitesState;", "", "<init>", "(Ljava/lang/String;I)V", "UNKNOWN", "SHOW_NEARBY_DEVICES_PERMISSION_RATIONALE_BOTTOMSHEET", "ASK_FOR_BLE_PERMISSION", "SHOW_NEARBY_DEVICES_PERMISSION_EXPLAINER_FULL_SCREEN_WITH_QR_OPTION", "SHOW_NEARBY_DEVICES_PERMISSION_EXPLAINER_FULL_SCREEN_WITHOUT_QR_OPTION", "SHOW_TURN_ON_BLE_FULL_SCREEN_EXPLAINER", "ASK_TO_MANUALLY_TURN_ON_BLUETOOTH", "SHOW_TAP_TO_VALIDATE_BOTTOMSHEET_TUTORIAL", "CAN_RUN_BLE_VALIDATION_OPERATION", "BLE_NOT_AVAILABLE_ON_DEVICE", "BLE_TURN_ON_OPERATION_FAILED", "validationsdk_release"}, k = 1, mv = {2, 0, 0}, xi = 48)
+public enum BleValidationPrerequisitesState {
+    UNKNOWN,
+    SHOW_NEARBY_DEVICES_PERMISSION_RATIONALE_BOTTOMSHEET,
+    ASK_FOR_BLE_PERMISSION,
+    SHOW_NEARBY_DEVICES_PERMISSION_EXPLAINER_FULL_SCREEN_WITH_QR_OPTION,
+    SHOW_NEARBY_DEVICES_PERMISSION_EXPLAINER_FULL_SCREEN_WITHOUT_QR_OPTION,
+    SHOW_TURN_ON_BLE_FULL_SCREEN_EXPLAINER,
+    ASK_TO_MANUALLY_TURN_ON_BLUETOOTH,
+    SHOW_TAP_TO_VALIDATE_BOTTOMSHEET_TUTORIAL,
+    CAN_RUN_BLE_VALIDATION_OPERATION,
+    BLE_NOT_AVAILABLE_ON_DEVICE,
+    BLE_TURN_ON_OPERATION_FAILED;
+
+    private static final /* synthetic */ EnumEntries $ENTRIES = EnumEntriesKt.a(values());
+
+    public static EnumEntries<BleValidationPrerequisitesState> getEntries() {
+        return $ENTRIES;
+    }
+}

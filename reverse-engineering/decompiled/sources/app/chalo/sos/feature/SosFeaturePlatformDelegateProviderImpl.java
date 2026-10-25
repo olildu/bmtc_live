@@ -1,0 +1,20 @@
+package app.chalo.sos.feature;
+
+import kotlin.Lazy;
+import kotlin.Metadata;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes6.dex */
+@Metadata(d1 = {"\u0000\n\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\b\u0007\u0018\u00002\u00020\u0001¨\u0006\u0002"}, d2 = {"Lapp/chalo/sos/feature/SosFeaturePlatformDelegateProviderImpl;", "Lapp/chalo/sos/feature/SosFeaturePlatformDelegateProvider;", "home_release"}, k = 1, mv = {2, 0, 0}, xi = 48)
+public final class SosFeaturePlatformDelegateProviderImpl implements SosFeaturePlatformDelegateProvider {
+
+    /* JADX INFO: renamed from: a, reason: collision with root package name */
+    public Lazy f9440a;
+
+    @Override // app.chalo.sos.feature.SosFeaturePlatformDelegateProvider
+    public final SosFeaturePlatformDelegate getDelegate() {
+        SosFeaturePlatformDelegate sosFeaturePlatformDelegate;
+        Lazy lazy = this.f9440a;
+        return (lazy == null || (sosFeaturePlatformDelegate = (SosFeaturePlatformDelegate) lazy.getValue()) == null) ? DefaultSosDelegate.f9429a : sosFeaturePlatformDelegate;
+    }
+}

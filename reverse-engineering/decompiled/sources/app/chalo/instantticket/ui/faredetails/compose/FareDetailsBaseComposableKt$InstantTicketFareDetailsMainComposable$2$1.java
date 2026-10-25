@@ -1,0 +1,76 @@
+package app.chalo.instantticket.ui.faredetails.compose;
+
+import androidx.compose.material3.SheetState;
+import androidx.compose.material3.SheetValue;
+import androidx.compose.runtime.SnapshotStateKt;
+import app.chalo.instantticket.ui.faredetails.FareDetailsComponent;
+import app.chalo.instantticket.ui.faredetails.contract.FareDetailsIntent;
+import defpackage.v20;
+import kotlin.Metadata;
+import kotlin.ResultKt;
+import kotlin.Unit;
+import kotlin.coroutines.Continuation;
+import kotlin.coroutines.intrinsics.CoroutineSingletons;
+import kotlin.coroutines.jvm.internal.DebugMetadata;
+import kotlin.coroutines.jvm.internal.SuspendLambda;
+import kotlin.jvm.functions.Function2;
+import kotlinx.coroutines.CoroutineScope;
+import kotlinx.coroutines.flow.Flow;
+import kotlinx.coroutines.flow.FlowCollector;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes6.dex */
+@Metadata(d1 = {"\u0000\n\n\u0000\n\u0002\u0010\u0002\n\u0002\u0018\u0002\u0010\u0000\u001a\u00020\u0001*\u00020\u0002H\n"}, d2 = {"<anonymous>", "", "Lkotlinx/coroutines/CoroutineScope;"}, k = 3, mv = {2, 0, 0}, xi = 48)
+@DebugMetadata(c = "app.chalo.instantticket.ui.faredetails.compose.FareDetailsBaseComposableKt$InstantTicketFareDetailsMainComposable$2$1", f = "FareDetailsBaseComposable.kt", l = {98}, m = "invokeSuspend", v = 1)
+final class FareDetailsBaseComposableKt$InstantTicketFareDetailsMainComposable$2$1 extends SuspendLambda implements Function2<CoroutineScope, Continuation<? super Unit>, Object> {
+    final /* synthetic */ SheetState $modalBottomSheetState;
+    final /* synthetic */ FareDetailsComponent $vm;
+    int label;
+
+    /* JADX WARN: 'super' call moved to the top of the method (can break code semantics) */
+    public FareDetailsBaseComposableKt$InstantTicketFareDetailsMainComposable$2$1(SheetState sheetState, FareDetailsComponent fareDetailsComponent, Continuation continuation) {
+        super(2, continuation);
+        this.$modalBottomSheetState = sheetState;
+        this.$vm = fareDetailsComponent;
+    }
+
+    @Override // kotlin.coroutines.jvm.internal.BaseContinuationImpl
+    public final Continuation create(Object obj, Continuation continuation) {
+        return new FareDetailsBaseComposableKt$InstantTicketFareDetailsMainComposable$2$1(this.$modalBottomSheetState, this.$vm, continuation);
+    }
+
+    @Override // kotlin.jvm.functions.Function2
+    public final Object invoke(Object obj, Object obj2) {
+        return ((FareDetailsBaseComposableKt$InstantTicketFareDetailsMainComposable$2$1) create((CoroutineScope) obj, (Continuation) obj2)).invokeSuspend(Unit.f17538a);
+    }
+
+    @Override // kotlin.coroutines.jvm.internal.BaseContinuationImpl
+    public final Object invokeSuspend(Object obj) {
+        CoroutineSingletons coroutineSingletons = CoroutineSingletons.COROUTINE_SUSPENDED;
+        int i = this.label;
+        if (i == 0) {
+            ResultKt.b(obj);
+            Flow flowSnapshotFlow = SnapshotStateKt.snapshotFlow(new v20(this.$modalBottomSheetState, 0));
+            final FareDetailsComponent fareDetailsComponent = this.$vm;
+            FlowCollector flowCollector = new FlowCollector() { // from class: app.chalo.instantticket.ui.faredetails.compose.FareDetailsBaseComposableKt$InstantTicketFareDetailsMainComposable$2$1.2
+                @Override // kotlinx.coroutines.flow.FlowCollector
+                public final Object emit(Object obj2, Continuation continuation) {
+                    if (((SheetValue) obj2) == SheetValue.Hidden) {
+                        fareDetailsComponent.Z0(FareDetailsIntent.CancelOrderApiIntent.f3925a);
+                    }
+                    return Unit.f17538a;
+                }
+            };
+            this.label = 1;
+            if (flowSnapshotFlow.collect(flowCollector, this) == coroutineSingletons) {
+                return coroutineSingletons;
+            }
+        } else {
+            if (i != 1) {
+                throw new IllegalStateException("call to 'resume' before 'invoke' with coroutine");
+            }
+            ResultKt.b(obj);
+        }
+        return Unit.f17538a;
+    }
+}

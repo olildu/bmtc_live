@@ -1,0 +1,61 @@
+package app.chalo.premiumbus.data.models.app;
+
+import defpackage.r30;
+import defpackage.z40;
+import java.util.List;
+import kotlin.Metadata;
+import kotlin.jvm.internal.Intrinsics;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes6.dex */
+@Metadata(d1 = {"\u0000\n\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\b\u0087\b\u0018\u00002\u00020\u0001¨\u0006\u0002"}, d2 = {"Lapp/chalo/premiumbus/data/models/app/PremiumReserveTicketFareAndPassengerPropertiesAppModel;", "", "productbooking_release"}, k = 1, mv = {2, 0, 0}, xi = 48)
+public final /* data */ class PremiumReserveTicketFareAndPassengerPropertiesAppModel {
+
+    /* JADX INFO: renamed from: a, reason: collision with root package name */
+    public final long f7115a;
+    public final List b;
+    public final String c;
+
+    public PremiumReserveTicketFareAndPassengerPropertiesAppModel(long j, String str, List passengerCategoryDetails) {
+        Intrinsics.i(passengerCategoryDetails, "passengerCategoryDetails");
+        this.f7115a = j;
+        this.b = passengerCategoryDetails;
+        this.c = str;
+    }
+
+    /* JADX INFO: renamed from: a, reason: from getter */
+    public final long getF7115a() {
+        return this.f7115a;
+    }
+
+    /* JADX INFO: renamed from: b, reason: from getter */
+    public final List getB() {
+        return this.b;
+    }
+
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof PremiumReserveTicketFareAndPassengerPropertiesAppModel)) {
+            return false;
+        }
+        PremiumReserveTicketFareAndPassengerPropertiesAppModel premiumReserveTicketFareAndPassengerPropertiesAppModel = (PremiumReserveTicketFareAndPassengerPropertiesAppModel) obj;
+        return this.f7115a == premiumReserveTicketFareAndPassengerPropertiesAppModel.f7115a && Intrinsics.d(this.b, premiumReserveTicketFareAndPassengerPropertiesAppModel.b) && Intrinsics.d(this.c, premiumReserveTicketFareAndPassengerPropertiesAppModel.c);
+    }
+
+    public final int hashCode() {
+        long j = this.f7115a;
+        int iB = r30.b(((int) (j ^ (j >>> 32))) * 31, 31, this.b);
+        String str = this.c;
+        return iB + (str == null ? 0 : str.hashCode());
+    }
+
+    public final String toString() {
+        StringBuilder sb = new StringBuilder("PremiumReserveTicketFareAndPassengerPropertiesAppModel(amount=");
+        sb.append(this.f7115a);
+        sb.append(", passengerCategoryDetails=");
+        sb.append(this.b);
+        return z40.h(sb, ", fareNote=", this.c, ")");
+    }
+}

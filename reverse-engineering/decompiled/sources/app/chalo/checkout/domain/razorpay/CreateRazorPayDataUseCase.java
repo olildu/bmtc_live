@@ -1,0 +1,20 @@
+package app.chalo.checkout.domain.razorpay;
+
+import app.chalo.checkout.data.resolver.CheckoutPaymentDataResolver;
+import app.chalo.checkout.data.resolver.product.ICheckoutProductDataResolver;
+import kotlin.Metadata;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes5.dex */
+@Metadata(d1 = {"\u0000\n\n\u0002\u0018\u0002\n\u0002\u0010\u0000\n\u0000\b\u0007\u0018\u00002\u00020\u0001¨\u0006\u0002"}, d2 = {"Lapp/chalo/checkout/domain/razorpay/CreateRazorPayDataUseCase;", "", "checkout_release"}, k = 1, mv = {2, 0, 0}, xi = 48)
+public final class CreateRazorPayDataUseCase {
+
+    /* JADX INFO: renamed from: a, reason: collision with root package name */
+    public final ICheckoutProductDataResolver f1396a;
+    public final CheckoutPaymentDataResolver b;
+
+    public CreateRazorPayDataUseCase(ICheckoutProductDataResolver iCheckoutProductDataResolver, CheckoutPaymentDataResolver checkoutPaymentDataResolver) {
+        this.f1396a = iCheckoutProductDataResolver;
+        this.b = checkoutPaymentDataResolver;
+    }
+}

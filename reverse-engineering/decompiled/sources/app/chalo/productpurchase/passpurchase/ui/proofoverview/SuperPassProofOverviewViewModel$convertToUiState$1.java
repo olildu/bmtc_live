@@ -1,0 +1,37 @@
+package app.chalo.productpurchase.passpurchase.ui.proofoverview;
+
+import com.google.android.gms.wallet.WalletConstants;
+import kotlin.Metadata;
+import kotlin.coroutines.jvm.internal.ContinuationImpl;
+import kotlin.coroutines.jvm.internal.DebugMetadata;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes6.dex */
+@Metadata(k = 3, mv = {2, 0, 0}, xi = 48)
+@DebugMetadata(c = "app.chalo.productpurchase.passpurchase.ui.proofoverview.SuperPassProofOverviewViewModel", f = "SuperPassProofOverviewViewModel.kt", l = {402, 407, WalletConstants.ERROR_CODE_BUYER_ACCOUNT_ERROR, 399, 434, 435, 436, 451, 467}, m = "convertToUiState", v = 1)
+final class SuperPassProofOverviewViewModel$convertToUiState$1 extends ContinuationImpl {
+    int I$0;
+    Object L$0;
+    Object L$1;
+    Object L$2;
+    Object L$3;
+    Object L$4;
+    Object L$5;
+    Object L$6;
+    int label;
+    /* synthetic */ Object result;
+    final /* synthetic */ SuperPassProofOverviewViewModel this$0;
+
+    /* JADX WARN: 'super' call moved to the top of the method (can break code semantics) */
+    public SuperPassProofOverviewViewModel$convertToUiState$1(SuperPassProofOverviewViewModel superPassProofOverviewViewModel, ContinuationImpl continuationImpl) {
+        super(continuationImpl);
+        this.this$0 = superPassProofOverviewViewModel;
+    }
+
+    @Override // kotlin.coroutines.jvm.internal.BaseContinuationImpl
+    public final Object invokeSuspend(Object obj) {
+        this.result = obj;
+        this.label |= Integer.MIN_VALUE;
+        return this.this$0.r(null, this);
+    }
+}

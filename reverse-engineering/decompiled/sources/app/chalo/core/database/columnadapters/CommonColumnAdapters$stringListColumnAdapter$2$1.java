@@ -1,0 +1,35 @@
+package app.chalo.core.database.columnadapters;
+
+import app.cash.sqldelight.ColumnAdapter;
+import app.chalo.network.config.ChaloJson;
+import java.util.List;
+import kotlin.Metadata;
+import kotlin.collections.EmptyList;
+import kotlin.jvm.internal.Intrinsics;
+import kotlinx.serialization.internal.ArrayListSerializer;
+import kotlinx.serialization.internal.StringSerializer;
+import kotlinx.serialization.json.Json;
+
+/* JADX INFO: compiled from: r8-map-id-768684cd39a5ad1c7d5fcc2f270101f474284688cfb789f364f0693d6cb386f8 */
+/* JADX INFO: loaded from: classes5.dex */
+@Metadata(d1 = {"\u0000\u0013\n\u0000\n\u0002\u0018\u0002\n\u0002\u0010 \n\u0002\u0010\u000e\n\u0000*\u0001\u0000\b\n\u0018\u00002\u0014\u0012\n\u0012\b\u0012\u0004\u0012\u00020\u00030\u0002\u0012\u0004\u0012\u00020\u00030\u0001¨\u0006\u0004"}, d2 = {"app/chalo/core/database/columnadapters/CommonColumnAdapters$stringListColumnAdapter$2$1", "Lapp/cash/sqldelight/ColumnAdapter;", "", "", "core_release"}, k = 1, mv = {2, 0, 0}, xi = 48)
+public final class CommonColumnAdapters$stringListColumnAdapter$2$1 implements ColumnAdapter<List<? extends String>, String> {
+    @Override // app.cash.sqldelight.ColumnAdapter
+    public final Object a(String str) {
+        if (str.length() == 0) {
+            return EmptyList.f17557a;
+        }
+        Json json = ChaloJson.b;
+        json.getClass();
+        return (List) json.b(str, new ArrayListSerializer(StringSerializer.f18170a));
+    }
+
+    @Override // app.cash.sqldelight.ColumnAdapter
+    public final Object encode(Object obj) {
+        List value = (List) obj;
+        Intrinsics.i(value, "value");
+        Json json = ChaloJson.b;
+        json.getClass();
+        return json.a(new ArrayListSerializer(StringSerializer.f18170a), value);
+    }
+}
