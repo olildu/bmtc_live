@@ -2,7 +2,7 @@
 
 BMTC Live: a website where you pick a destination in Bengaluru and see every BMTC bus that gets you there, moving live on a map, with an ETA to your boarding stop. It runs on Chalo's **unofficial** backend, the same one the official BMTC 2.0 app uses.
 
-Live: https://bmtc.olildu.dpdns.org (self-hosted on oci-arm, Docker) and https://bmtc-live.pages.dev (Cloudflare Pages project `bmtc-live`).
+Live: https://bmtc.olildu.dpdns.org (self-hosted on oci-arm, Docker). The old Cloudflare Pages project `bmtc-live` was deleted on 2026-10-26; don't redeploy there.
 
 ## Layout
 
@@ -16,6 +16,7 @@ Live: https://bmtc.olildu.dpdns.org (self-hosted on oci-arm, Docker) and https:/
 | `scripts/metro.py` | Builds `public/metro.json` (Namma Metro lines, stations, scheduled trips, fares) from the unofficial [Vonter/bmrcl-gtfs](https://github.com/Vonter/bmrcl-gtfs) feed (ODbL; attribution is on the map). Standard library only. |
 | `public/metro.json` | Generated, about 57 KB. Times are **scheduled**, not live: Chalo has the metro lines but no live or timetable data. |
 | `functions/api/direct.js` | `GET /api/direct?flat&flon&tlat&tlon` returns direct routes between up to 6 distinctly named stops near each end (`routesbetweenstops`, 38 subrequests). Used in night mode only. |
+| `scripts/fare_check.py` | Rapido fare estimator and accuracy checker (standard library). Estimates are a formula over OSRM road distance and time; `add` records real app quotes, `report` shows the error and `fit` tunes the formula into `scripts/fare_params.json`. It never calls Rapido: their fare API is signed against outside use. |
 | `server.js` | Node server (local dev and the Docker image). Serves `public/`, `/api/*` (same Function code) and `/healthz`. No dependencies. Needs **Node 22** (it `import()`s the ESM Functions from CommonJS). |
 | `Dockerfile`, `.github/workflows/release.yml`, `deploy/docker-compose.prod.yml` | Self-hosting on oci-arm; see "Self-hosting" below. |
 | `reverse-engineering/FINDINGS.md` | **Read this before touching anything API-related.** Every endpoint, header, param quirk and socket protocol detail, plus what failed. |
@@ -66,7 +67,7 @@ The page watches GPS from load in every tab, and the map has a "my location" but
 
 ## Night mode
 
-Late at night the planner has little or nothing for "now". When the normal pass finds fewer than 5 routes, `/api/plan` runs a second pass planned for tomorrow 09:00 (`istTomorrow9()`) and marks routes found only that way `night: true`. It keeps at most 20 routes, because both passes plus `routedetails` must fit in 50 subrequests (about 48 at worst). The page then:
+Late at night the planner has little or nothing for "now". When the normal pass finds fewer than 5 routes, `/api/plan` runs a second pass planned for tomorrow 09:00 (`istTomorrow9()`) and marks routes found only that way `night: true`. It keeps at most 20 routes, to keep a night plan to about 48 upstream calls (a budget left over from Cloudflare's 50-subrequest limit; still worth keeping to go easy on Chalo). The page then:
 - adds `/api/direct` routes
 - shows a 🌙 banner
 - once the live snapshot has had 6 s, lists routes with a bus coming to the boarding stop first and collapses night routes with nothing running behind "N more routes… show"
@@ -86,7 +87,7 @@ Same pattern as linkup-backend on the same box:
 
 ```
 node server.js                                                          # local, http://localhost:3000
-npx wrangler pages deploy public --project-name bmtc-live --branch main # deploy (wrangler picks up functions/)
+python3 scripts/fare_check.py estimate "Koramangala" "MG Road"          # Rapido fare estimate (add / report / fit to check accuracy)
 python3 scripts/metro.py                                                # refresh public/metro.json from the metro GTFS
 git tag v1.2.3 && git push origin v1.2.3                                # release to oci-arm (bmtc.olildu.dpdns.org)
 ```
@@ -98,10 +99,10 @@ There are no tests or build step. To check page JS syntax:
 
 - **Socket.IO must be v2** (`socket.io-client@2.5.0`). Subscribe payloads must be **JSON strings**. The snapshot message has string payloads and deltas have object payloads.
 - The trip planner needs **`mode=transit`** and an **upper-case city** (`BENGALURU`). `start_time` is seconds since midnight **IST**, and `day` is `sun`…`sat`.
-- Chalo's CDN returns **403 to Cloudflare Workers without a `user-agent`**. Keep `user-agent: Ktor client` in `plan.js`.
+- Chalo's CDN returned **403 to Cloudflare Workers without a `user-agent`**. Keep `user-agent: Ktor client` in `plan.js`.
 - ETAs are in **seconds**.
 - The page script runs as a classic script, so a top-level `let`/`const`/`class` must **not** be named after a protected browser global (`top`, `window`, `document`, `location`). It throws "redeclaration of non-configurable global property" and nothing loads. `node --check` and jsdom don't catch this; a real browser does.
-- Cloudflare allows **50 subrequests** per Function call. `plan.js` uses up to 15 planner and nearby-stop calls plus one `routedetails` call per route, so routes are capped at 30 (`MAX_ROUTES`).
+- Upstream call budgets per request (plan ≤ ~48, direct 38, tometro 34) come from the old Cloudflare 50-subrequest limit. The Node server has no such limit, but keep them: fewer calls means less chance of Chalo blocking the server's IP.
 - CARTO basemaps now need an API key, so don't switch back to them. OpenFreeMap needs no key.
 - The repo's code and commits must **not** mention Claude or AI, and must not include co-author trailers.
 
@@ -116,7 +117,7 @@ There are no tests or build step. To check page JS syntax:
 - **Destination-only mode** (every route serving the destination stop, from anywhere) needs a stop-to-routes endpoint. See "What did NOT work" in `FINDINGS.md` for candidates.
 - **Transfers:** routes needing a transfer show as separate legs, not one planned journey.
 - **No caching:** `routedetails` responses aren't cached in the Function (they could go in KV or the Cache API).
-- **Recovering from blocks:** if Chalo blocks Cloudflare IPs again, try other headers first, then a different host for the proxy.
+- **Recovering from blocks:** if Chalo blocks the oci-arm IP, try other headers first, then a different host (oci-amd is free).
 
 ## Regenerating the decompiled code
 

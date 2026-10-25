@@ -1,4 +1,4 @@
-// Cloudflare Pages Function for route tracking.
+// API handler (served by server.js) for route tracking.
 //   GET /api/route?q=500D       -> routes matching a route number (both directions)
 //   GET /api/route?id=<routeId> -> that route's stops in order and its road shape (encoded polyline)
 import { API, getJson, istNow } from './plan.js';

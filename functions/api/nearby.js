@@ -1,4 +1,4 @@
-// Cloudflare Pages Function: GET /api/nearby?lat=&lon=[&r=metres]
+// API handler (served by server.js): GET /api/nearby?lat=&lon=[&r=metres]
 // Chalo has no working "buses near a point" call for BMTC (geoquery's nearbybus returns nothing, /summary returns
 // NO_TRIPS_FOR_ANY_STOPS_NEARBY). So: plan trips from the point to the city's main hubs and keep every route that
 // boards close by. Returns [{routeId, name, towards, tags, stop, d}] nearest stop first; the page subscribes to them live.

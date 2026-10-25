@@ -1,10 +1,10 @@
-// Cloudflare Pages Function: GET /api/direct?flat=&flon=&tlat=&tlon=
+// API handler (served by server.js): GET /api/direct?flat=&flon=&tlat=&tlon=
 // Direct bus routes between the stops near the start and the stops near the destination, from Chalo's
 // routesbetweenstops. Unlike the trip planner it doesn't depend on the time of day, so the page uses it at night,
 // when the planner has nothing for "leaving now". Returns [{routeId, name, tags, board, alight, walk...}].
 import { API, getJson, nearbyStopsFull, dist, walkM, WALK_SPEED } from './plan.js';
 
-const PER_SIDE = 6; // 2 nearby calls + 6 x 6 pair calls = 38 subrequests (limit 50)
+const PER_SIDE = 6; // 2 nearby calls + 6 x 6 pair calls = 38 upstream calls (kept small to go easy on Chalo)
 
 // routesbetweenstops matches stops by name, so one stop per distinct name is enough
 function distinctByName(stops, n) {

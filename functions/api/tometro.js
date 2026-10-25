@@ -1,10 +1,10 @@
-// Cloudflare Pages Function: GET /api/tometro?flat=&flon=&st=lat,lon,stationId;...
+// API handler (served by server.js): GET /api/tometro?flat=&flon=&st=lat,lon,stationId;...
 // Direct buses from the stops near the start to the stops beside up to 3 metro stations, for "bus, then metro"
 // journeys. The page picks the stations (it has public/metro.json) by how quickly bus + metro reach the destination.
 // Uses routesbetweenstops, which works at any hour. Returns [{routeId, name, tags, board, alight, stationId, walkToBoard}].
 import { API, getJson, nearbyStopsFull, walkM, WALK_SPEED } from './plan.js';
 
-const ORIGIN_STOPS = 5, STATION_STOPS = 2, MAX_STATIONS = 3, STATION_RADIUS = 350; // 1 + 3 + 5*6 = 34 subrequests
+const ORIGIN_STOPS = 5, STATION_STOPS = 2, MAX_STATIONS = 3, STATION_RADIUS = 350; // 1 + 3 + 5*6 = 34 upstream calls
 
 function distinctByName(stops, n) {
   const seen = new Set(), out = [];

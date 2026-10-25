@@ -1,4 +1,4 @@
-// Cloudflare Pages Function: GET /api/plan?flat=&flon=&tlat=&tlon=
+// API handler (served by server.js): GET /api/plan?flat=&flon=&tlat=&tlon=
 // Proxies Chalo's (unofficial) trip planner. Returns {journeys: [{legs: walk/bus/metro, totalTime, fare, night?}],
 // stops: {routeId: [stop list]}, night}. The page ranks journeys by live arrival time.
 export const API = 'https://production.zophop.com/scheduler_v4';
@@ -52,7 +52,7 @@ export function dist(a, b) {
 }
 export const walkM = (a, b) => Math.round(dist(a, b) * 1.3);
 export const WALK_SPEED = 80; // m/min
-// Workers allow 50 subrequests per request: a normal plan uses 15 + one routedetails per route; a night plan
+// Upstream call budget (originally Cloudflare's 50-subrequest limit; kept to go easy on Chalo): a normal plan uses 15 + one routedetails per route; a night plan
 // adds a second 13-call pass (nearby stops are reused), so it keeps fewer routes.
 const MAX_WALK_MIN = 35, MAX_ROUTES = 30, MAX_ROUTES_NIGHT = 20, MIN_ROUTES = 5, MAX_JOURNEYS = 25;
 

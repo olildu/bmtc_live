@@ -1,5 +1,5 @@
-// Node server: serves public/ and the /api/* Functions (same code Cloudflare Pages runs). Used for local dev
-// (`node server.js`) and in the Docker image that runs on oci-arm. No dependencies.
+// Node server: serves public/ and the /api/* handlers in functions/api/. Used for local dev (`node server.js`)
+// and in the Docker image that runs on oci-arm (the only deployment). No dependencies.
 // Live bus data is fetched by the browser directly from Chalo's socket.
 const http = require('http');
 const fs = require('fs');
