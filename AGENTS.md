@@ -10,6 +10,8 @@ Live: https://bmtc-live.pages.dev (Cloudflare Pages project `bmtc-live`).
 |---|---|
 | `public/index.html` | The whole frontend in one file: HTML, CSS and JS. Leaflet, with MapLibre rendering OpenFreeMap's `dark` vector style. Socket.IO v2 client from jsDelivr. |
 | `functions/api/plan.js` | Cloudflare Pages Function, `GET /api/plan?flat&flon&tlat&tlon`. Calls Chalo's trip planner, keeps the bus legs, adds each route's stop list, and returns `[{routeId, name, direct, board, alight, stops[], travelTime, tags}]`. |
+| `functions/api/route.js` | `GET /api/route?q=<route number>` searches routes (both directions). `GET /api/route?id=<routeId>` returns `{name, from, to, tags, polyline, stops[]}`. Used by the "Track a route" tab. |
+| `functions/api/nearby.js` | `GET /api/nearby?lat&lon` returns the routes that board within 1.5 km, with headsign and boarding stop. It plans trips to 16 hubs in parallel because Chalo has no working buses-near-a-point call for BMTC. Used by the "Nearby" tab. |
 | `server.js` | Local dev server. Serves `public/` and runs the same `plan.js`. No dependencies. |
 | `reverse-engineering/FINDINGS.md` | **Read this before touching anything API-related.** Every endpoint, header, param quirk and socket protocol detail, plus what failed. |
 | `reverse-engineering/apk/` | The original split APK pulled from a phone. |
@@ -18,9 +20,17 @@ Live: https://bmtc-live.pages.dev (Cloudflare Pages project `bmtc-live`).
 ## How the app works
 
 1. **Place search:** the user picks a destination with Photon geocoding (`photon.komoot.io`, biased to Bengaluru) or by clicking the map. The start is the browser's GPS (`watchPosition`, blue dot with an accuracy circle), a typed place, or a shift+click.
-2. **Planning:** `/api/plan` returns the bus routes connecting the two points, with direct routes first.
+2. **Planning:** `/api/plan` returns the bus routes connecting the two points, with direct routes first. From the exact point the planner often returns only trips with transfers, so the Function also plans from up to 8 nearby stops around the start and to 4 around the destination. That turns up direct buses a short walk away. Each route carries walk minutes (straight line ×1.3 at 80 m/min), and the page filters by "Walk up to" (25 min by default).
 3. **Live data:** the browser opens Chalo's socket directly (`crtslb.chalo.com`, path `/products/live/partitions/0`). It subscribes to `routes:<routeId>` for positions and `etas:<boardStopId>:<routeId>` for ETAs to the boarding stop.
 4. **Drawing:** the map shows only the ridden segment (boarding stop to alighting stop) plus dashed walking legs. A bus is "passed" when its ETA is `-1` or its next stop is beyond the boarding stop in the route's stop sequence. Passed buses are hidden by default.
+
+## Track a route
+
+The second tab searches a route number, draws the whole route along its road shape (decoded from `polyline`) with every stop, and shows each live bus from `routes:<routeId>`. Tapping a bus follows it: the map pans with it until the user drags, and the sidebar lists its upcoming stops. ETAs come from `etas:<stopId>:<routeId>` for its next 10 stops, re-subscribed as it moves. The ETA and position feeds share vehicle keys. `#route=<routeId>` in the URL opens a route directly. Both tabs share `liveSocket()`.
+
+## Nearby and your location
+
+The page watches GPS from load in every tab, and the map has a "my location" button. The Nearby tab calls `/api/nearby` with your position, subscribes to `routes:` and `etas:<stop>:<route>` for every route found, and shows buses within the chosen radius (500 m, 1 km or 2 km) sorted by distance. It reloads if you move 400 m, and reuses the last route lookup for 5 minutes. Tapping a bus stays in Nearby: it draws that bus's route, fades the other buses, and lists its upcoming stops with ETAs. Your nearby stop is marked. "← All nearby buses" or tapping the map goes back. "Open in Track route" is optional. In Track route, the stop nearest to you is marked "your stop", with walk time and the next bus's ETA.
 
 ## Commands
 
@@ -38,6 +48,7 @@ There are no tests or build step. To check page JS syntax:
 - The trip planner needs **`mode=transit`** and an **upper-case city** (`BENGALURU`). `start_time` is seconds since midnight **IST**, and `day` is `sun`…`sat`.
 - Chalo's CDN returns **403 to Cloudflare Workers without a `user-agent`**. Keep `user-agent: Ktor client` in `plan.js`.
 - ETAs are in **seconds**.
+- Cloudflare allows **50 subrequests** per Function call. `plan.js` uses up to 15 planner and nearby-stop calls plus one `routedetails` call per route, so routes are capped at 30 (`MAX_ROUTES`).
 - CARTO basemaps now need an API key, so don't switch back to them. OpenFreeMap needs no key.
 - The repo's code and commits must **not** mention Claude or AI, and must not include co-author trailers.
 

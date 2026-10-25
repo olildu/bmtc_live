@@ -55,6 +55,12 @@ City casing matters: `BENGALURU` (upper) for v4 `routedetails` and v5/v6 trip pl
 `GET /scheduler_v4/v4/BENGALURU/routedetails?route_id=3xUwYVHP&day=thu`
 → `route.{route_id, serviceCategory, last_stop, stopSequenceWithDetails[]}`. Stops are in travel order, each with `stop_id`, `stop_name`, `stop_lat` and `stop_lon`.
 
+### Search (routes, stops and places by text)
+`GET /scheduler_v4/v4/BENGALURU/search?str=500D&day=sun` (both params required)
+→ `{routes[], stops[], places[], trips[]}`. Each route has `route_id`, `route_name`, `first_stop_name`, `last_stop_name`, `spf` (service tags) and `match_ratio`. Both directions come back as separate routes with the ends swapped. A place name such as `koramangala` returns `stops[]` (`stop_id`, `stop_name`, `stop_lat`, `stop_lon`). The app builds this URL from config (the autocomplete methods didn't decompile), so it was found by probing: `/search` answered "Missing required request parameter: str", then "day". The v5 variant also wants `location`.
+
+`routedetails` also returns `route.polyline`, the road shape as a Google encoded polyline with 5 decimal places.
+
 ### Stop details
 `POST /scheduler_v4/v4/bengaluru/stopDetails` body `{"stopIds":["wIF80cnq"]}` → name and location only (no routes).
 
@@ -79,10 +85,11 @@ Code: `app/chalo/livetracking/frameworklivetracking/` (`RealTimeSocketManagerImp
 
 ## What did NOT work (and still open)
 
-- `GET /scheduler_v4/v4/<city>/summary` (stop summary used by the stop screen) always returned `NO_TRIPS_FOR_ANY_STOPS_NEARBY` or a 500, whatever params I tried.
+- `GET /scheduler_v4/v4/<city>/summary` (stop summary used by the stop screen) always returned `NO_TRIPS_FOR_ANY_STOPS_NEARBY` or a 500, whatever params I tried. The app sends `lat, lon, time, day, radius, cards` (from `LocationSummaryRequestDataHolder`). Seconds since midnight for `time` gives `NO_TRIPS_FOR_ANY_STOPS_NEARBY`, and epoch ms gives a 500.
+- `POST https://geoquery.zophop.com/nearbybus/v2/city/BENGALURU`, body `{"metaData":{"locale":"en","appVer":"1001","userId":"x"},"requiredFields":{"nearbyBuses":{"lat":..,"lng":..,"radius":..}}}`, answers 200 with `{"buses":[]}` for any radius, even while BMTC buses are live. Its response fields (`_operatorId`, `_mode`, `_streamId`) suggest it covers Chalo's own buses only. The website's "Nearby" tab works around this with `/api/nearby`, which plans trips to the city's hubs and keeps the routes that board close by.
 - `GET /scheduler_v4/v4/<city>/stops/id?mode=…` (full city stop list) returned 500 for every casing and mode combination.
 - `POST /scheduler_v4/v5/<city>/routedetails` (bulk route sync, body `{meta, routeIdsToVersionMap, location:{lat,lng}}`) returned 500.
-- **Not found yet: "all routes that serve a given stop".** That would allow a destination-only mode (every bus going to X, from anywhere). Candidates not yet tested: `scheduler_v4/v1/{city}/routes/corridors`, `scheduler_v4/v6/{CITY}/tripplanner/bus-wise`, `scheduler_v4/v5/{CITY}/routesbetweenstops`.
+- **Not found yet: "all routes that serve a given stop".** (The search endpoint above turns a place name into stop IDs, which is one half of it.) That would allow a destination-only mode (every bus going to X, from anywhere). Candidates not yet tested: `scheduler_v4/v1/{city}/routes/corridors`, `scheduler_v4/v6/{CITY}/tripplanner/bus-wise`, `scheduler_v4/v5/{CITY}/routesbetweenstops`.
 
 ## Other endpoint paths seen in the code (untested)
 

@@ -1,4 +1,4 @@
-// Local dev server: serves public/ and /api/plan (same code the Cloudflare Pages Function runs).
+// Local dev server: serves public/ and the /api/* Functions (same code Cloudflare Pages runs).
 // Live bus data is fetched by the browser directly from Chalo's socket.
 const http = require('http');
 const fs = require('fs');
@@ -10,8 +10,8 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
-  if (u.pathname === '/api/plan') {
-    const { onRequestGet } = await import('./functions/api/plan.js');
+  if (['/api/plan', '/api/route', '/api/nearby'].includes(u.pathname)) {
+    const { onRequestGet } = await import(`./functions${u.pathname}.js`);
     const r = await onRequestGet({ request: new Request('http://x' + req.url) });
     res.writeHead(r.status, { 'content-type': 'application/json' });
     return res.end(await r.text());
