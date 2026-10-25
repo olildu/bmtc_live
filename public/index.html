@@ -46,9 +46,10 @@
   .toggles select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: inherit; padding: 2px 4px; }
   .tag.walk { color: var(--accent2); border-color: rgba(96,165,250,.4); }
   #routes, #track, #nearby { padding: 4px 12px 18px; }
-  .tabs { display: flex; gap: 3px; margin: 12px 18px 2px; padding: 3px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; }
-  .tabs button { flex: 1; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; padding: 8px; cursor: pointer; }
-  .tabs button.on { background: #2a3040; color: var(--text); }
+  .tabs { display: flex; gap: 20px; margin: 12px 18px 2px; border-bottom: 1px solid var(--line); }
+  .tabs button { border: 0; background: 0; color: var(--faint); font: inherit; font-size: 13.5px; font-weight: 700; padding: 0 0 10px; cursor: pointer; position: relative; }
+  .tabs button.on { color: var(--text); }
+  .tabs button.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--text); }
   body.mode-route .trip-only, body.mode-nearby .trip-only,
   body:not(.mode-route) .route-only, body:not(.mode-nearby) .nearby-only { display: none !important; }
   .tbus .badge { font-size: 12px; padding: 2px 7px; }
@@ -69,15 +70,16 @@
   .when input { flex: 1; min-width: 0; }
   /* journey cards */
   /* Plan trip header (destination-first) */
-  .searchbar { position: relative; display: flex; align-items: center; gap: 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 12px 18px 0; }
+  .field-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); font-weight: 800; margin: 13px 18px 0; }
+  .searchbar { position: relative; display: flex; align-items: center; gap: 11px; margin: 5px 18px 0; }
   .searchbar:focus-within { border-color: var(--accent2); }
-  .searchbar .pin { width: 17px; height: 17px; color: #ef4444; flex: none; }
-  .searchbar input { flex: 1; min-width: 0; background: 0; border: 0; color: var(--text); font: inherit; font-size: 15px; font-weight: 600; outline: none; }
+  .searchbar .pin { width: 19px; height: 19px; color: #ef4444; flex: none; }
+  .searchbar input { flex: 1; min-width: 0; background: 0; border: 0; color: var(--text); font: inherit; font-size: 18px; font-weight: 800; letter-spacing: -.01em; outline: none; }
   .searchbar input::placeholder { color: var(--muted); font-weight: 500; }
   .starbtn { border: 0; background: 0; color: var(--faint); cursor: pointer; padding: 2px; display: grid; place-items: center; }
   .starbtn .ic { width: 18px; height: 18px; }
   .starbtn.saved { color: var(--c-feeder); }
-  .fromrow { position: relative; display: flex; align-items: center; gap: 7px; margin: 8px 18px 0; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .fromrow { position: relative; display: flex; align-items: center; gap: 7px; margin: 11px 18px 0; padding-top: 11px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); font-weight: 600; }
   .fromrow .loc { width: 14px; height: 14px; color: var(--accent2); flex: none; }
   .fromrow .lbl { color: var(--faint); }
   .fromrow input { flex: 1; min-width: 0; background: 0; border: 0; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; outline: none; padding: 3px 0; }
@@ -85,11 +87,11 @@
   .fromrow .mini { border: 0; background: 0; color: var(--accent2); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 3px 4px; display: inline-flex; align-items: center; gap: 3px; }
   .fromrow .swapbtn { color: var(--muted); } .fromrow .swapbtn .ic { width: 15px; height: 15px; }
   .chiprow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 11px 18px 2px; }
-  .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; background: var(--panel2); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; padding: 0 10px; border-radius: 9px; white-space: nowrap; flex: none; cursor: pointer; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; background: 0; border: 1px solid var(--line2); color: var(--text); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 0 11px; border-radius: 9px; white-space: nowrap; flex: none; cursor: pointer; }
   .pill .ic { width: 14px; height: 14px; color: var(--muted); }
   .pill .chev { width: 11px; height: 11px; color: var(--faint); margin-left: -2px; }
-  .selpill select { background: 0; border: 0; color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; padding: 0; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none; }
-  .chip.tog { display: inline-flex; align-items: center; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 700; padding: 8px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; }
+  .selpill select { background: 0; border: 0; color: var(--text); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 0; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none; }
+  .chip.tog { display: inline-flex; align-items: center; min-height: 32px; border: 1px solid var(--line2); background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 0 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; }
   .chip.tog input { display: none; }
   .chip.tog:has(input:checked) { background: rgba(38,181,107,.14); border-color: rgba(38,181,107,.5); color: #6ee7a8; }
   #whenAt { min-height: 34px; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font: inherit; font-size: 12.5px; padding: 0 9px; color-scheme: dark; flex: none; }
@@ -301,6 +303,7 @@
       <div class="sub">Plan a trip or track any route. Every bus, live.</div>
     </header>
     <div class="tabs"><button id="tabTrip" class="on">Plan trip</button><button id="tabRoute">Track route</button><button id="tabNearby">Nearby</button></div>
+    <div class="field-lbl trip-only">To</div>
     <div class="searchbar trip-only" id="toField">
       <svg class="pin"><use href="#i-pin"/></svg>
       <input id="to" placeholder="Where to?" autocomplete="off">
