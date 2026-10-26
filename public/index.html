@@ -244,6 +244,9 @@
   .bm.halted .bm-dot { border-color: #f59e0b; }
   .bm.passed { opacity: .35; }
   .bm.passed .bm-tag { display: none; }
+  /* schedule-simulated metro ridership factoid */
+  .ride { font-size: 11.5px; color: var(--muted); padding: 2px 2px 8px; display: flex; align-items: center; gap: 6px; }
+  .ride::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #3fb36b; flex: none; }
   .spinner { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent2); border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .grip { display: none; }
@@ -358,7 +361,7 @@ const mq = matchMedia('(max-width: 760px)');
 const map = L.map('map', { zoomControl: false }).setView(BLR, 12);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 setTimeout(() => { const a = document.querySelector('.leaflet-control-attribution'); if (a) a.addEventListener('click', e => { if (!e.target.closest('a')) a.classList.toggle('show'); }); }, 500);
-L.maplibreGL({
+const glLayer = L.maplibreGL({
   style: 'https://tiles.openfreemap.org/styles/dark',
   attribution: '&copy; OpenFreeMap &copy; OpenStreetMap · Metro timetable: BMRCL via Vonter/bmrcl-gtfs (ODbL)',
 }).addTo(map);
@@ -1137,6 +1140,7 @@ function drawTrip() {
   layers.lines.clearLayers(); layers.stops.clearLayers();
   const vis = visibleOptions().filter(o => !(o.eff.noBus && settled()));
   const show = state.sel ? state.options.filter(o => o.key === state.sel) : vis.slice(0, 4);
+  const metroLines = new Set(); // metro lines used by the shown journeys -> live trains for just those
   show.forEach((o, n) => {
     const strong = state.sel || n === 0, legs = o.useFork ? o.fork.legs : o.legs;
     for (const l of legs) {
@@ -1159,6 +1163,7 @@ function drawTrip() {
       }
     }
     for (const x of o.eff.steps.filter(y => y.sched)) for (const t of x.sched.legs) {
+      metroLines.add(t.line);
       const stations = metro.lines[t.line].stations, c = LINE_C[t.line] || metro.lines[t.line].color;
       const lo = Math.min(t.i, t.j), hi = Math.max(t.i, t.j), pts = [];
       for (let k = lo; k <= hi; k++) pts.push([stations[k][2], stations[k][3]]);
@@ -1169,6 +1174,7 @@ function drawTrip() {
       }
     }
   });
+  setMetroView(metro && metroLines.size ? metroLines : null, true); // live trains on the journey's metro line(s)
   redrawTripBuses();
 }
 // the bus you'd catch on each drawn option (bright), other buses heading to the same stop (dim)
@@ -1268,7 +1274,7 @@ function setMode(m) {
   document.body.classList.toggle('mode-nearby', m === 'nearby');
   for (const [id, x] of [['tabTrip', 'trip'], ['tabRoute', 'route'], ['tabNearby', 'nearby']]) $(id).classList.toggle('on', m === x);
   // leave the old tab: close its socket and clear its layers
-  if (prev === 'trip') { stopTripLive(); map.removeLayer(layers.pins); }
+  if (prev === 'trip') { stopTripLive(); map.removeLayer(layers.pins); setMetroView(null); }
   if (prev === 'route') stopTrack();
   if (prev === 'nearby') stopNearby();
   history.replaceState(null, '', location.pathname);
@@ -1509,6 +1515,31 @@ const metroData = () => metroP ??= fetch('/metro.json').then(r => r.json()).then
   return m;
 }).catch(e => { metroP = null; throw e; });
 let metro = null;
+// BMRCL daily ridership (open data, ODbL/0BSD, scraped every ~24h). A factoid, not live train data.
+// Cached 3h in this browser; latest day's total vs the median of the same weekday.
+let ridP = null;
+function metroRidership() {
+  if (ridP) return ridP;
+  const KEY = 'bmtc.metroRide';
+  try { const c = JSON.parse(localStorage.getItem(KEY) || 'null'); if (c && Date.now() - c.t < 3 * 3600e3) return ridP = Promise.resolve(c.s); } catch {}
+  return ridP = fetch('https://raw.githubusercontent.com/thecont1/namma-metro-ridership-tracker/main/NammaMetro_Ridership_Dataset.csv')
+    .then(r => r.ok ? r.text() : Promise.reject(r.status)).then(txt => {
+      const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const data = txt.trim().split('\n').slice(1).map(l => l.split(',')).map(c => {
+        const [dd, mm, yy] = c[0].split('-').map(Number), dt = new Date(Date.UTC(yy, mm - 1, dd));
+        return { dt, dow: dt.getUTCDay(), total: (+c[1] || 0) + (+c[6] || 0) + (+c[7] || 0) + (+c[8] || 0) + (+c[9] || 0) }; // smart cards + tokens + NCMC + group + QR
+      }).filter(x => x.total > 0 && !isNaN(x.dow));
+      if (!data.length) throw new Error('no rows');
+      const last = data[data.length - 1];
+      const peers = data.filter(x => x.dow === last.dow && x !== last).map(x => x.total).sort((a, b) => a - b);
+      const med = peers.length ? peers[peers.length >> 1] : last.total, pct = Math.round((last.total / med - 1) * 100);
+      const lakh = n => (n / 1e5).toFixed(1).replace(/\.0$/, '') + 'L';
+      const wd = DOW[last.dow], cmp = Math.abs(pct) < 4 ? `about a typical ${wd}` : `${Math.abs(pct)}% ${pct > 0 ? 'above' : 'below'} a typical ${wd}`;
+      const s = `${lakh(last.total)} metro trips on ${last.dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${cmp}`;
+      try { localStorage.setItem(KEY, JSON.stringify({ t: Date.now(), s })); } catch {}
+      return s;
+    }).catch(() => { ridP = null; return null; });
+}
 const lightLine = c => c.toUpperCase() === '#FFDF00';
 const istNowSecs = () => { const d = new Date(Date.now() + 5.5 * 3600e3); return { secs: d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds(), d }; };
 function metroService(d) { // d: a Date shifted to IST
@@ -1542,13 +1573,133 @@ function nearestStations(ll, n = 3) {
   return [...metro.byStation.entries()].map(([id, on]) => ({ id, on, st: on[0].st, d: map.distance(ll, [on[0].st[2], on[0].st[3]]) }))
     .sort((a, b) => a.d - b.d).slice(0, n);
 }
+// ---- live metro: schedule-simulated train positions (not telemetry) ----
+// There is no public live BMRCL feed, so positions come from the GTFS timetable (offsets + trips)
+// advanced against the IST clock and interpolated along each line's shape, like community metro maps.
+// Lines and trains are drawn as MapLibre GL layers on the basemap, so they stay locked to the track and
+// scale with zoom (a train is a short, thick segment of the line itself — not a fixed-size marker).
+const TRAIN_HALF = 110;            // half-length of a train's body in metres
+let metroTimer = null, glMap = null;
+const metroGL = () => glMap ??= (glLayer.getMaplibreMap && glLayer.getMaplibreMap());
+
+// per-line geometry: decoded shape, cumulative metres, and each station's distance along the shape (dir-0 order)
+function lineGeom(line) {
+  const Ln = metro.lines[line];
+  if (Ln._geom) return Ln._geom;
+  const pts = decodePoly(Ln.shape), cum = [0];
+  for (let i = 1; i < pts.length; i++) cum[i] = cum[i - 1] + map.distance(pts[i - 1], pts[i]);
+  const sd = Ln.stations.map(st => {
+    const p = [st[2], st[3]]; let best = Infinity, at = 0;
+    for (let i = 1; i < pts.length; i++) { const [d, t] = segProj(p, pts[i - 1], pts[i]); if (d < best) { best = d; at = cum[i - 1] + t * (cum[i] - cum[i - 1]); } }
+    return at;
+  });
+  return Ln._geom = { pts, cum, sd, total: cum[cum.length - 1] };
+}
+// nearest point of segment a-b to p (lat/lon), as [distance, fraction t along a-b]
+function segProj(p, a, b) {
+  const ax = a[1], ay = a[0], bx = b[1], by = b[0], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 ? ((p[1] - ax) * dx + (p[0] - ay) * dy) / l2 : 0; t = Math.max(0, Math.min(1, t));
+  return [Math.hypot(p[1] - (ax + t * dx), p[0] - (ay + t * dy)), t];
+}
+// lat/lon at a shape-distance
+function posAtDist(g, sd) {
+  let i = 1; while (i < g.cum.length - 1 && g.cum[i] < sd) i++;
+  const a = g.pts[i - 1], b = g.pts[i], span = g.cum[i] - g.cum[i - 1], f = span ? (sd - g.cum[i - 1]) / span : 0;
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+}
+// the sub-path between two shape-distances, as [lon,lat] pairs (a train body)
+function sliceLonLat(g, d0, d1) {
+  const out = [posAtDist(g, d0)];
+  for (let i = 0; i < g.cum.length; i++) if (g.cum[i] > d0 && g.cum[i] < d1) out.push(g.pts[i]);
+  out.push(posAtDist(g, d1));
+  return out.map(([la, lo]) => [lo, la]);
+}
+// every train running right now: interpolate each active trip between its stations
+function metroTrains() {
+  if (!metro) return [];
+  const { secs, d } = istNowSecs(), out = [];
+  for (const [line, Ln] of Object.entries(metro.lines)) {
+    const g = lineGeom(line), N = Ln.stations.length;
+    for (const dir of [0, 1]) {
+      const off = metro.offsets[line][dir];
+      for (const shift of [-1, 0]) {                       // yesterday's late trains still running + today
+        const day = new Date(d.getTime() + shift * 86400e3), trips = metro.trips[metroService(day)]?.[line]?.[dir] || [];
+        for (const t of trips) {
+          const dep = t[2] + shift * 86400, end = dep + (off[t[1]] - off[t[0]]);
+          if (secs < dep || secs > end) continue;
+          let j = t[0]; while (j < t[1] && dep + (off[j + 1] - off[t[0]]) <= secs) j++;
+          const tA = dep + (off[j] - off[t[0]]), tB = dep + (off[j + 1] - off[t[0]]), f = tB > tA ? (secs - tA) / (tB - tA) : 0;
+          const iA = dir ? N - 1 - j : j, iB = dir ? N - 2 - j : j + 1;   // dir-0 station indices
+          out.push({ line, color: Ln.color, sd: g.sd[iA] + (g.sd[iB] - g.sd[iA]) * f });
+        }
+      }
+    }
+  }
+  return out;
+}
+// which lines to draw (a Set of keys, or null = hidden) and whether to dim the line (Plan trip: focus on the leg)
+let metroFilter = null, metroFaint = false;
+const inFilter = line => metroFilter && metroFilter.has(line);
+const fc = features => ({ type: 'FeatureCollection', features });
+const metroLinesGeo = () => fc(Object.keys(metro.lines).filter(inFilter).map(line =>
+  ({ type: 'Feature', properties: { color: metro.lines[line].color }, geometry: { type: 'LineString', coordinates: lineGeom(line).pts.map(([la, lo]) => [lo, la]) } })));
+function metroTrainsGeo() {
+  const out = [];
+  for (const tr of metroTrains()) {
+    if (!inFilter(tr.line)) continue;
+    const g = lineGeom(tr.line), seg = sliceLonLat(g, Math.max(0, tr.sd - TRAIN_HALF), Math.min(g.total, tr.sd + TRAIN_HALF));
+    if (seg.length >= 2) out.push({ type: 'Feature', properties: { color: tr.color }, geometry: { type: 'LineString', coordinates: seg } });
+  }
+  return fc(out);
+}
+const zw = (...stops) => ['interpolate', ['linear'], ['zoom'], ...stops]; // zoom-interpolated width
+function addMetroGL() {
+  const m = metroGL(); if (!m || !metroFilter) return;
+  if (!m.isStyleLoaded()) { m.once('idle', addMetroGL); return; }
+  if (m.getSource('m-lines')) return refreshMetroGL();
+  m.addSource('m-lines', { type: 'geojson', data: metroLinesGeo() });
+  m.addSource('m-trains', { type: 'geojson', data: metroTrainsGeo() });
+  m.addLayer({ id: 'm-glow', type: 'line', source: 'm-lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ['get', 'color'], 'line-blur': 8, 'line-opacity': .18, 'line-width': zw(10, 9, 15, 24) } });
+  m.addLayer({ id: 'm-track', type: 'line', source: 'm-lines', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ['get', 'color'], 'line-opacity': .85, 'line-width': zw(10, 2.5, 13, 5, 16, 9) } });
+  m.addLayer({ id: 'm-train-glow', type: 'line', source: 'm-trains', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ['get', 'color'], 'line-blur': 6, 'line-opacity': .55, 'line-width': zw(10, 13, 15, 28) } });
+  m.addLayer({ id: 'm-train-case', type: 'line', source: 'm-trains', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#0a0e12', 'line-width': zw(10, 10, 13, 15, 16, 20) } });
+  m.addLayer({ id: 'm-train', type: 'line', source: 'm-trains', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ['get', 'color'], 'line-width': zw(10, 7, 13, 11, 16, 15) } });
+  applyMetroFaint();
+}
+function applyMetroFaint() {
+  const m = glMap; if (!m || !m.getLayer || !m.getLayer('m-track')) return;
+  try { m.setPaintProperty('m-track', 'line-opacity', metroFaint ? .4 : .85); m.setPaintProperty('m-glow', 'line-opacity', metroFaint ? .1 : .18); } catch {}
+}
+function refreshMetroGL() {
+  const m = glMap; if (!m || !m.getSource || !m.getSource('m-trains')) return;
+  try { m.getSource('m-lines').setData(metroLinesGeo()); m.getSource('m-trains').setData(metroTrainsGeo()); applyMetroFaint(); } catch {}
+}
+function removeMetroGL() {
+  const m = glMap; if (!m || !m.getLayer) return;
+  for (const id of ['m-train', 'm-train-case', 'm-train-glow', 'm-track', 'm-glow']) if (m.getLayer(id)) m.removeLayer(id);
+  for (const s of ['m-trains', 'm-lines']) if (m.getSource(s)) m.removeSource(s);
+}
+// show live trains + line for a set of lines (null/empty = hide). `faint` dims the line (Plan trip).
+function setMetroView(lineSet, faint = false) {
+  metroFilter = lineSet && lineSet.size ? lineSet : null;
+  metroFaint = faint;
+  if (!metro || !metroFilter) { if (metroTimer) { clearInterval(metroTimer); metroTimer = null; } return removeMetroGL(); }
+  addMetroGL();
+  if (!metroTimer) metroTimer = setInterval(tickMetroTrains, 1000);
+}
+function stopMetroTrains() { setMetroView(null); }
+function tickMetroTrains() { if (!metro || !metroFilter) return stopMetroTrains(); refreshMetroGL(); }
 function drawMetro() {
   layers.metro.clearLayers();
-  for (const [line, L] of Object.entries(metro.lines)) {
-    L.shape && window.L.polyline(decodePoly(L.shape), { color: L.color, weight: 3, opacity: .45, interactive: false }).addTo(layers.metro);
-    L.stations.forEach((st, i) => window.L.circleMarker([st[2], st[3]], { radius: 4, color: L.color, weight: 2, fillColor: '#0b0d10', fillOpacity: 1 })
+  for (const [line, Ln] of Object.entries(metro.lines))
+    Ln.stations.forEach(st => L.circleMarker([st[2], st[3]], { radius: 3.5, color: Ln.color, weight: 2, fillColor: '#0b0d10', fillOpacity: 1 })
       .bindTooltip(`${st[1]} (metro)`).on('click', () => openStation(st[0])).addTo(layers.metro));
-  }
+  setMetroView(new Set(Object.keys(metro.lines)), false); // Nearby: all lines, full strength
 }
 
 // --- nearby: every live bus within a radius of you ---
@@ -1567,6 +1718,7 @@ const nearTop = () => near.stack.at(-1) || null; // not `top`: window.top can't 
 
 function stopNearby() {
   if (near.sock) { near.sock.close(); near.sock = null; }
+  stopMetroTrains();
   layers.near.clearLayers(); layers.nearSel.clearLayers(); layers.metro.clearLayers();
   near.markers.clear(); near.vehicles.clear(); near.etas.clear(); near.refs.clear(); near.extra.clear();
   Object.assign(near, { routes: new Map(), center: null, circle: null, live: false, stack: [] });
@@ -1574,6 +1726,7 @@ function stopNearby() {
 async function startNearby() {
   stopNearby();
   metroData().then(m => { metro = m; if (mode === 'nearby') { drawMetro(); renderNearby(); } }).catch(() => {});
+  metroRidership().then(s => { if (s) { near.ride = s; if (mode === 'nearby') renderNearby(); } });
   if (!me.pos) {
     if (me.denied) setStatus('Location is off. Allow it to see buses around you.');
     else { setStatus('Finding your location…', 'loading'); startWatch(); }
@@ -1646,7 +1799,10 @@ function drawNearBuses() {
 // live subscriptions = every nearby route + whatever the open views need, diffed against what's subscribed
 function syncNearRefs() {
   const want = new Set();
-  for (const r of near.routes.values()) want.add('routes:' + r.routeId).add(`etas:${r.stop.id}:${r.routeId}`);
+  // positions for every nearby route; the per-stop ETA stream only for routes that have a bus actually near you
+  const R = radius() * 1.4, live = new Set();
+  if (near.center) for (const v of near.vehicles.values()) if (near.routes.has(v.routeId) && map.distance(near.center, [v.lat, v.lon]) <= R) live.add(v.routeId);
+  for (const r of near.routes.values()) { want.add('routes:' + r.routeId); if (live.has(r.routeId)) want.add(`etas:${r.stop.id}:${r.routeId}`); }
   for (const sel of near.stack) {
     if (sel.type === 'stop') for (const r of sel.routes || []) want.add('routes:' + r.routeId).add(`etas:${r.stop.id}:${r.routeId}`);
     if (sel.type === 'bus' && sel.route) {
@@ -1757,7 +1913,9 @@ function renderNearby() {
 }
 function renderMetroNear() {
   if (!metro || !near.center) return '';
-  return `<div class="thead">Metro near you <span class="sched">scheduled</span></div>` + nearestStations(near.center).map(s => {
+  return `<div class="thead">Metro near you <span class="sched">scheduled · trains moving live</span></div>`
+    + (near.ride ? `<div class="ride" title="BMRCL daily ridership (open data, updated every ~24h)">${esc(near.ride)}</div>` : '')
+    + nearestStations(near.center).map(s => {
     const next = s.on.flatMap(o => [0, 1].map(dir => ({ o, dir, dep: departures(o.line, dir, o.i, 1)[0] }))).filter(x => x.dep);
     return `<div class="tbus" data-station="${s.id}"><div>${s.on.map(o => `<i class="mdot" style="--mc:${metro.lines[o.line].color}"></i>`).join('')}<b>${esc(s.st[1])}</b>
       <small>${next.length ? next.map(x => `to ${esc(dirName(x.o.line, x.dir))} ${inMin(x.dep.at)}`).join(' · ') : 'No more trains today'}</small></div>
