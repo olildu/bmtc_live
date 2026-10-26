@@ -22,7 +22,7 @@
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; }
   #app { display: grid; grid-template-columns: 380px 1fr; height: 100%; }
   #side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-  header { padding: 18px 18px 8px; }
+  header { padding: 18px 18px 8px; position: relative; }
   h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: -.01em; }
   h1 span { color: var(--accent); }
   .sub { color: var(--muted); font-size: 12.5px; }
@@ -281,6 +281,31 @@
     .leaflet-control-zoom { display: none; }
     .leaflet-bottom { bottom: var(--sheet-h, 0); transition: bottom .25s ease; }
   }
+  /* guided walkthrough */
+  #tourBtn { position: absolute; top: 16px; right: 14px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line2); background: var(--panel2); color: var(--muted); font: 700 13px Inter, sans-serif; cursor: pointer; display: grid; place-items: center; line-height: 1; padding: 0; z-index: 2; }
+  #tourBtn:hover { color: var(--text); border-color: var(--accent); }
+  #tour { position: fixed; inset: 0; z-index: 3000; display: none; }
+  #tour.on { display: block; }
+  #tour.no-spot { background: rgba(4,6,9,.64); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+  #tourSpot { position: absolute; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(4,6,9,.66); outline: 2px solid var(--accent); outline-offset: 3px; pointer-events: none; transition: all .3s cubic-bezier(.4,0,.2,1); }
+  #tour.no-spot #tourSpot { display: none; }
+  .tour-card { position: absolute; width: min(336px, calc(100vw - 24px)); background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; padding: 15px 16px 13px; box-shadow: 0 16px 50px rgba(0,0,0,.6); transition: top .28s ease, left .28s ease; animation: tfade .2s ease; }
+  @keyframes tfade { from { opacity: 0; } }
+  #tour.no-spot .tour-card { top: 50% !important; left: 50% !important; transform: translate(-50%, -50%); width: min(400px, calc(100vw - 32px)); padding: 24px 22px 18px; }
+  .tour-skip { position: absolute; top: 12px; right: 14px; border: 0; background: 0; color: var(--faint); font: 600 12px Inter, sans-serif; cursor: pointer; }
+  .tour-skip:hover { color: var(--muted); }
+  .tour-step { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .tour-card h3 { margin: 4px 0 7px; font-size: 16.5px; letter-spacing: -.01em; }
+  .tour-card p { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .tour-card p b { color: var(--text); font-weight: 600; }
+  .tour-dots { display: flex; gap: 5px; margin-bottom: 13px; }
+  .tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line2); transition: all .2s; }
+  .tour-dots i.on { background: var(--accent); width: 16px; border-radius: 3px; }
+  .tour-nav { display: flex; gap: 9px; justify-content: flex-end; align-items: center; }
+  .tour-nav .tbtn { border: 0; border-radius: 9px; padding: 8px 16px; font: 700 13px Inter, sans-serif; cursor: pointer; background: var(--accent); color: #05240f; }
+  .tour-nav .tbtn:hover { filter: brightness(1.06); }
+  .tour-nav .tbtn.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+  .tour-nav .tbtn.ghost:disabled { opacity: .35; cursor: default; }
 </style>
 </head>
 <body>
@@ -304,6 +329,7 @@
     <header>
       <h1>BMTC <span>Live</span></h1>
       <div class="sub">Plan a trip or track any route. Every bus, live.</div>
+      <button id="tourBtn" title="Take a tour of the features" aria-label="Take a tour">?</button>
     </header>
     <div class="tabs"><button id="tabTrip" class="on">Plan trip</button><button id="tabRoute">Track route</button><button id="tabNearby">Nearby</button></div>
     <div class="field-lbl trip-only">To</div>
@@ -347,6 +373,17 @@
 <button id="alertPill" title="Your alerts"></button>
 <div id="alertBox"></div>
 <div id="toast"></div>
+<div id="tour" aria-hidden="true">
+  <div id="tourSpot"></div>
+  <div class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-label="Feature walkthrough">
+    <button class="tour-skip" id="tourSkip">Skip tour</button>
+    <div class="tour-step" id="tourStep"></div>
+    <h3 id="tourTitle"></h3>
+    <p id="tourBody"></p>
+    <div class="tour-dots" id="tourDots"></div>
+    <div class="tour-nav"><button class="tbtn ghost" id="tourBack">Back</button><button class="tbtn" id="tourNext">Next</button></div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -2114,6 +2151,72 @@ startWatch(); // show where you are from the start, in every tab
 renderChips();
 if (hashRoute) { track.route = { routeId: hashRoute }; setMode('route'); }
 else restoreTrip(); // bring back the last destination on refresh
+
+// ---- guided walkthrough: a spotlight that steps through each real control (first visit; replay from the "?" button) ----
+// Each step switches to the right tab, highlights an actual element, and anchors a callout beside it.
+const TOUR = [
+  { mode: 'trip', title: 'Welcome to BMTC Live', body: 'Find any BMTC bus to where you\'re going — moving <b>live on a map</b> — plus Namma Metro. This quick tour points out everything. Skip anytime.' },
+  { mode: 'trip', sel: '.tabs', title: 'Three ways in', body: '<b>Plan trip</b> for a full journey, <b>Track route</b> to follow a route number, and <b>Nearby</b> for what\'s around you. I\'ll walk through each.' },
+  { mode: 'trip', sel: '#toField', title: 'Set your destination', body: 'Type where you\'re going here, or tap the map. Your start is your location by default — type it under <b>from</b>, or long-press / shift-click the map. Save places with the <b>star</b>.' },
+  { mode: 'trip', sel: '.chiprow', title: 'Rank it your way', body: 'Order results by <b>Fastest</b>, <b>Least walking</b> or <b>Cheapest</b>, set <b>Leave at</b> / <b>Arrive by</b>, and flip on <b>2 buses</b> for trips with a transfer.' },
+  { mode: 'trip', sel: '#routes', title: 'Every way, ranked by arrival', body: 'Options appear here ordered by <b>when you\'d actually arrive</b> from live buses — one bus, bus + metro, or metro. Open one for a step-by-step timeline; the map draws your walk, the live bus and <b>moving metro</b>.' },
+  { mode: 'route', sel: '.field.route-only', title: 'Track a route', body: 'Know the number? Search it to see the <b>whole route</b> and <b>every live bus</b> on it. Tap a bus to follow it, with upcoming stops and ETAs.' },
+  { mode: 'nearby', sel: '.toggles', title: 'Nearby', body: '<b>Live buses around you</b>, nearest first, within 500 m – 2 km. Plus <b>live metro trains</b> gliding on the lines and today\'s metro ridership. Tap a bus, stop or train to open it.' },
+  { mode: 'nearby', sel: '#map', title: 'Live on the map', body: 'Buses, your walking path and metro trains all move in real time. Tap <b>Notify me</b> on any bus, stop or train to get pinged before it arrives (keep the tab open).' },
+  { mode: 'trip', sel: '#tourBtn', title: 'You\'re all set', body: 'Pick a destination to begin — and replay this tour anytime from here.' },
+];
+let tourI = 0;
+const tclamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function positionTour(el) {
+  const spot = $('tourSpot'), card = $('tourCard'), r = el.getBoundingClientRect(), pad = 6;
+  spot.style.cssText = `position:absolute;left:${r.left - pad}px;top:${r.top - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px`;
+  const cw = card.offsetWidth, ch = card.offsetHeight, vw = innerWidth, vh = innerHeight, m = 12;
+  let left, top;
+  if (r.right + m + cw <= vw - m) { left = r.right + m; top = tclamp(r.top, m, vh - ch - m); }                      // beside, over the map
+  else if (r.bottom + m + ch <= vh - m) { top = r.bottom + m; left = tclamp(r.left + r.width / 2 - cw / 2, m, vw - cw - m); } // below
+  else if (r.top - m - ch >= m) { top = r.top - m - ch; left = tclamp(r.left + r.width / 2 - cw / 2, m, vw - cw - m); }       // above
+  else { left = tclamp(r.left + r.width / 2 - cw / 2, m, vw - cw - m); top = vh - ch - m; }                            // pinned to the bottom
+  card.style.left = left + 'px'; card.style.top = top + 'px';
+}
+function layoutTour() {
+  const s = TOUR[tourI], el = s.sel && document.querySelector(s.sel), t = $('tour');
+  if (!el) { t.classList.add('no-spot'); return; }
+  t.classList.remove('no-spot');
+  if (mq.matches) setSheet(s.sel === '#map' ? 'peek' : 'full'); // mobile: reveal the sheet control, or the map
+  requestAnimationFrame(() => {
+    try { if (s.sel !== '#map') el.scrollIntoView({ block: 'center' }); } catch {}
+    setTimeout(() => { if ($('tour').classList.contains('on')) positionTour(el); }, mq.matches ? 200 : 40);
+  });
+}
+function renderTour() {
+  const s = TOUR[tourI];
+  if (s.mode && s.mode !== mode) setMode(s.mode);
+  $('tourStep').textContent = `Step ${tourI + 1} of ${TOUR.length}`;
+  $('tourTitle').textContent = s.title;
+  $('tourBody').innerHTML = s.body;
+  $('tourDots').innerHTML = TOUR.map((_, i) => `<i class="${i === tourI ? 'on' : ''}"></i>`).join('');
+  $('tourBack').disabled = tourI === 0;
+  $('tourNext').textContent = tourI === TOUR.length - 1 ? 'Done' : 'Next';
+  layoutTour();
+}
+function openTour(i = 0) { tourI = i; const t = $('tour'); t.classList.add('on'); t.setAttribute('aria-hidden', 'false'); renderTour(); }
+function closeTour() { const t = $('tour'); t.classList.remove('on'); t.setAttribute('aria-hidden', 'true'); try { localStorage.setItem('bmtc.tour', '1'); } catch {} }
+const tourNext = () => tourI >= TOUR.length - 1 ? closeTour() : (tourI++, renderTour());
+const tourBack = () => { if (tourI > 0) { tourI--; renderTour(); } };
+const tourOpen = () => $('tour').classList.contains('on');
+$('tourBtn').onclick = () => openTour(0);
+$('tourSkip').onclick = closeTour;
+$('tourNext').onclick = tourNext;
+$('tourBack').onclick = tourBack;
+addEventListener('resize', () => { if (tourOpen()) layoutTour(); });
+$('side').addEventListener('scroll', () => { const el = tourOpen() && TOUR[tourI].sel && document.querySelector(TOUR[tourI].sel); if (el) positionTour(el); });
+addEventListener('keydown', e => {
+  if (!tourOpen()) return;
+  if (e.key === 'Escape') closeTour();
+  else if (e.key === 'ArrowRight' || e.key === 'Enter') tourNext();
+  else if (e.key === 'ArrowLeft') tourBack();
+});
+try { if (!hashRoute && !localStorage.getItem('bmtc.tour')) setTimeout(() => openTour(0), 700); } catch {}
 </script>
 </body>
 </html>
