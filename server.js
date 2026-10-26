@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const VERSION = process.env.APP_VERSION || 'dev';
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
-const API = ['/api/plan', '/api/route', '/api/nearby', '/api/direct', '/api/tometro'];
+const API = ['/api/plan', '/api/route', '/api/nearby', '/api/direct', '/api/tometro', '/api/walk'];
 
 http.createServer(async (req, res) => {
   try {

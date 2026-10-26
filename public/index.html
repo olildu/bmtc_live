@@ -798,10 +798,11 @@ function catchBus(l, readyIn) {
 // when the bus fits, else an estimated wait + ride; metro from its timetable.
 function scoreLegs(legs, base = null) {
   const now = base == null ? istNowSecs().secs : base, steps = [];
-  let t = 0, walk = 0, noBus = false, live = false, metroUsed = false, estimated = false, first = null;
+  let t = 0, walk = 0, noBus = false, live = false, metroUsed = false, estimated = false, first = null, sawRide = false;
   for (const l of legs) {
     if (l.t === 'walk') { const w = walkSecs(l.from, l.to); steps.push({ l, secs: w }); t += w; walk += w; }
     else if (l.t === 'bus' && base != null) {
+      sawRide = true;
       const ready = now + t; let dep = null, arr = null, how = 'estimated';
       if (l.dep && l.arr) { const d = toSecs(l.dep); if (d >= ready - 60) { dep = d; arr = toSecs(l.arr); how = 'scheduled'; } }
       if (dep == null) { dep = ready + EST_WAIT; arr = dep + rideSecs(l); estimated = true; }
@@ -811,15 +812,17 @@ function scoreLegs(legs, base = null) {
     }
     else if (l.t === 'bus') {
       const b = catchBus(l, t);
-      if (!b) { const r = rideSecs(l); steps.push({ l, none: true, ride: r }); noBus = true; t += NO_BUS_WAIT + r; continue; }
-      live = true; steps.push({ l, bus: b, wait: b.eb - t, ride: b.arr - b.eb });
+      // no live bus on this leg: a connecting bus (not the first you board) just uses an estimate, it isn't a blocker
+      if (!b) { const r = rideSecs(l); steps.push({ l, none: true, ride: r, est: sawRide }); if (!sawRide) noBus = true; estimated = true; sawRide = true; t += NO_BUS_WAIT + r; continue; }
+      sawRide = true; live = true; steps.push({ l, bus: b, wait: b.eb - t, ride: b.arr - b.eb });
       first ??= { l, bus: b, leaveIn: Math.max(0, b.eb - t) };
       t = b.arr;
     } else {
       metroUsed = true;
       const ready = now + t + STATION_ENTRY, sc = scheduleMetro(l.from, l.to, ready);
       // after the last train the next one is tomorrow morning: treat that as no metro tonight
-      if (!sc || sc.legs[0].dep - ready > MAX_METRO_WAIT) { steps.push({ l, none: true }); noBus = true; t += 1800; continue; }
+      if (!sc || sc.legs[0].dep - ready > MAX_METRO_WAIT) { steps.push({ l, none: true }); if (!sawRide) noBus = true; estimated = true; sawRide = true; t += 1800; continue; }
+      sawRide = true;
       // metro-first trips: leave in time to walk there and get through the station
       if (!first) first = { l, train: sc.legs[0], leaveIn: Math.max(0, sc.legs[0].dep - STATION_ENTRY - now - t), leaveAt: sc.legs[0].dep - STATION_ENTRY - t };
       steps.push({ l, sched: sc }); t = sc.arrive - now;
@@ -1022,7 +1025,7 @@ function railHtml(o) {
     } else if (l.t === 'bus') {
       let sub, time = '';
       if (st.plan) { sub = `${st.plan.how === 'scheduled' ? 'Scheduled' : 'Estimated'} · ride ${mins(st.ride)} min${st.wait > 90 ? ` · wait ~${mins(st.wait)} min` : ''}`; time = `${fmtClock(st.plan.dep)}–${fmtClock(st.plan.arr)}`; }
-      else if (st.none) sub = 'No live bus coming yet';
+      else if (st.none) sub = st.est ? `~${mins(st.ride)} min ride · no live bus yet, estimated` : 'No live bus coming yet';
       else sub = `${esc(st.bus.vNo || 'Bus')} in ${fmtEta(st.bus.eb)} · ride ${mins(st.ride)} min${st.bus.liveRide ? ' · live' : ''}`;
       rows.push(legRow(busSeg(l.name, l.tags), 'bus', `Bus ${esc(l.name)} · to ${esc(l.alight.name)}`, sub, time));
     } else if (st.sched) {
@@ -1093,6 +1096,27 @@ $('routes').addEventListener('click', e => {
 });
 
 // --- map: the selected option (or the best few) leg by leg ---
+// bus line colour = the ribbon's service-type colour, so the map and the card agree
+const SEG_C = { ord: '#1fae63', ac: '#2f80ed', air: '#6366f1', feeder: '#d9922a' };
+const LINE_C = { PURPLE: '#9b4fc0', GREEN: '#1fa85a', YELLOW: '#e6c023' };
+const busColor = l => SEG_C[busSeg(l.name, l.tags)] || routeColor(l.routeId);
+// real walking geometry (OSRM foot via /api/walk), cached; [] once fetched = none/failed, so we draw the straight fallback
+const walkCache = new Map(), walkPending = new Set();
+const walkKey = (a, b) => `${a.lat.toFixed(4)},${a.lon.toFixed(4)}>${b.lat.toFixed(4)},${b.lon.toFixed(4)}`;
+let walkRedrawT;
+function walkPath(a, b) {
+  if (!a || !b || !isFinite(a.lat) || !isFinite(b.lat)) return null;
+  const k = walkKey(a, b);
+  if (walkCache.has(k)) return walkCache.get(k);
+  if (!walkPending.has(k)) {
+    walkPending.add(k);
+    getJ(`/api/walk?flat=${a.lat}&flon=${a.lon}&tlat=${b.lat}&tlon=${b.lon}`)
+      .then(r => walkCache.set(k, r.polyline ? decodePoly(r.polyline) : []))
+      .catch(() => walkCache.set(k, []))
+      .finally(() => { walkPending.delete(k); clearTimeout(walkRedrawT); walkRedrawT = setTimeout(() => { if (mode === 'trip') drawTrip(); }, 160); });
+  }
+  return null;
+}
 function legPoints(l) {
   if (l.t === 'walk') return [[l.from.lat, l.from.lon], [l.to.lat, l.to.lon]];
   if (l.t === 'bus') {
@@ -1116,16 +1140,33 @@ function drawTrip() {
   show.forEach((o, n) => {
     const strong = state.sel || n === 0, legs = o.useFork ? o.fork.legs : o.legs;
     for (const l of legs) {
-      if (l.t === 'walk') L.polyline(legPoints(l), { color: '#cbd5e1', weight: 2, dashArray: '4 6', opacity: strong ? .85 : .4 }).addTo(layers.lines);
+      if (l.t === 'walk') {
+        const real = strong ? walkPath(l.from, l.to) : null, has = real && real.length;
+        L.polyline(has ? real : legPoints(l), { color: '#c3cbd8', weight: has ? 3 : 2, dashArray: has ? '1 7' : '4 6', lineCap: 'round', opacity: strong ? .9 : .4 }).addTo(layers.lines);
+      }
       if (l.t === 'bus') {
-        L.polyline(legPoints(l), { color: routeColor(l.routeId), weight: strong ? 5 : 3, opacity: strong ? .95 : .45 }).addTo(layers.lines);
-        if (strong) for (const x of [l.board, l.alight]) L.circleMarker([x.lat, x.lon], { radius: 6, color: '#fff', weight: 2, fillColor: routeColor(l.routeId), fillOpacity: 1 }).bindTooltip(x.name).addTo(layers.stops);
+        const c = busColor(l);
+        L.polyline(legPoints(l), { color: c, weight: strong ? 5 : 3, opacity: strong ? .95 : .45 }).addTo(layers.lines);
+        if (strong) {
+          // the bus's route from where it is now up to your boarding stop, lighter — so it's not disconnected before it arrives
+          const stp = o.eff.steps.find(x => x.l === l), v = stp && stp.bus && state.vehicles.get(stp.bus.key), sl = state.stopLists.get(l.routeId);
+          if (v && sl) {
+            const i = sl.idx.get(v.nextStop), bi = sl.idx.get(l.board.id);
+            if (i != null && bi != null && i <= bi) L.polyline([[v.lat, v.lon], ...sl.stops.slice(i, bi + 1).map(x => [x.lat, x.lon])], { color: c, weight: 4, opacity: .32, dashArray: '2 8', lineCap: 'round' }).addTo(layers.lines);
+          }
+          for (const x of [l.board, l.alight]) L.circleMarker([x.lat, x.lon], { radius: 6, color: '#fff', weight: 2, fillColor: c, fillOpacity: 1 }).bindTooltip(x.name).addTo(layers.stops);
+        }
       }
     }
     for (const x of o.eff.steps.filter(y => y.sched)) for (const t of x.sched.legs) {
-      const st = metro.lines[t.line].stations, pts = [];
-      for (let k = Math.min(t.i, t.j); k <= Math.max(t.i, t.j); k++) pts.push([st[k][2], st[k][3]]);
-      L.polyline(pts, { color: metro.lines[t.line].color, weight: strong ? 6 : 3, opacity: strong ? .95 : .45 }).addTo(layers.lines);
+      const stations = metro.lines[t.line].stations, c = LINE_C[t.line] || metro.lines[t.line].color;
+      const lo = Math.min(t.i, t.j), hi = Math.max(t.i, t.j), pts = [];
+      for (let k = lo; k <= hi; k++) pts.push([stations[k][2], stations[k][3]]);
+      L.polyline(pts, { color: c, weight: strong ? 6 : 3, opacity: strong ? .95 : .45 }).addTo(layers.lines);
+      if (strong) for (let k = lo; k <= hi; k++) {
+        const st = stations[k], end = k === t.i || k === t.j;
+        L.circleMarker([st[2], st[3]], { radius: end ? 6 : 3.5, color: '#fff', weight: end ? 2 : 1.5, fillColor: c, fillOpacity: 1 }).bindTooltip(st[1] + ' (metro)').addTo(layers.stops);
+      }
     }
   });
   redrawTripBuses();
@@ -1145,7 +1186,7 @@ function redrawTripBuses() {
   }
   for (const [k, m] of busMarkers) if (!want.has(k)) { layers.buses.removeLayer(m); busMarkers.delete(k); }
   for (const [k, { v, l, mine }] of want) {
-    const c = routeColor(l.routeId), look = `${c}|${v.bearing}|${mine}|${v.halted}`;
+    const c = busColor(l), look = `${c}|${v.bearing}|${mine}|${v.halted}`;
     let m = busMarkers.get(k);
     if (!m) { m = L.marker([v.lat, v.lon], { icon: busIcon(c, l.name, v.bearing, !mine, v.halted), zIndexOffset: mine ? 800 : 300 }).addTo(layers.buses); m._look = look; busMarkers.set(k, m); }
     else { m.setLatLng([v.lat, v.lon]); if (m._look !== look) { m.setIcon(busIcon(c, l.name, v.bearing, !mine, v.halted)); m._look = look; m.setZIndexOffset(mine ? 800 : 300); } }
