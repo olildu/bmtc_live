@@ -306,6 +306,16 @@
   .tour-nav .tbtn:hover { filter: brightness(1.06); }
   .tour-nav .tbtn.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
   .tour-nav .tbtn.ghost:disabled { opacity: .35; cursor: default; }
+  /* signal pill marker on map */
+  .sig-pill { position: absolute; display: flex; align-items: center; border-radius: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.5); transform: translate(-50%, -50%); cursor: pointer; pointer-events: auto; z-index: 600; background: var(--panel2); }
+  .sig-pill .sp-phase { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 18px 0 0 18px; flex: none; }
+  .sig-pill .sp-phase svg { width: 16px; height: 16px; }
+  .sig-pill .sp-cd { padding: 0 8px 0 1px; font: 800 13px/32px Inter, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.02em; min-width: 28px; text-align: center; }
+  .sig-pill.no-cd { border-radius: 50%; }
+  .sig-pill.no-cd .sp-phase { border-radius: 50%; }
+  .sig-pill.red .sp-phase { background: #ef4444; } .sig-pill.red .sp-cd { color: #ef4444; }
+  .sig-pill.amber .sp-phase { background: #f59e0b; } .sig-pill.amber .sp-cd { color: #f59e0b; }
+  .sig-pill.green .sp-phase { background: #22c55e; } .sig-pill.green .sp-cd { color: #22c55e; }
 </style>
 </head>
 <body>
@@ -2217,6 +2227,156 @@ addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft') tourBack();
 });
 try { if (!hashRoute && !localStorage.getItem('bmtc.tour')) setTimeout(() => openTour(0), 700); } catch {}
+
+// ---- signal pill markers: Leaflet divIcon rendering + overlap prevention ----
+const sigLayer = L.layerGroup().addTo(map);
+const sigMarkers = new Map();
+function sigPillHtml(phase, countdown) {
+  const cd = countdown ? `<div class="sp-cd">${countdown}</div>` : '';
+  return `<div class="sig-pill ${phase}${cd ? '' : ' no-cd'}"><div class="sp-phase"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" fill="#fff"/></svg></div>${cd}</div>`;
+}
+function sigPillIcon(phase, countdown) {
+  return L.divIcon({ className: '', iconSize: [0, 0], iconAnchor: [0, 0], html: sigPillHtml(phase, countdown) });
+}
+function addSignalMarker(id, lat, lon, phase, countdown) {
+  let m = sigMarkers.get(id);
+  if (m) { m.setIcon(sigPillIcon(phase, countdown)); m.setLatLng([lat, lon]); return m; }
+  m = L.marker([lat, lon], { icon: sigPillIcon(phase, countdown), interactive: true, zIndexOffset: -100 });
+  m.addTo(sigLayer);
+  sigMarkers.set(id, m);
+  return m;
+}
+function removeSignalMarker(id) { const m = sigMarkers.get(id); if (m) { sigLayer.removeLayer(m); sigMarkers.delete(id); } }
+function clearSignalMarkers() { sigLayer.clearLayers(); sigMarkers.clear(); }
+function deconflictSignals() {
+  const z = map.getZoom(), placed = [];
+  const minPx = 50;
+  for (const [id, m] of sigMarkers) {
+    const pt = map.latLngToContainerPoint(m.getLatLng());
+    const overlap = placed.some(p => Math.abs(pt.x - p.x) < minPx && Math.abs(pt.y - p.y) < minPx);
+    m.getElement()?.style.setProperty('display', overlap || z < 14 ? 'none' : '');
+    if (!overlap) placed.push(pt);
+  }
+}
+map.on('zoomend moveend', deconflictSignals);
+
+// ---- signal data: fetch live phases from the sidecar, tick countdowns locally ----
+const sig = { db: [], byId: new Map(), live: new Map(), ids: new Set(), timer: null, fetchT: null, lastFetch: 0 };
+fetch('/signals.json').then(r => r.json()).then(d => {
+  sig.db = d.junctions;
+  sig.byId = new Map(d.junctions.map(j => [j.id, j]));
+}).catch(() => {});
+
+function sigJunctionsInBounds(bounds, pad = 0) {
+  if (!sig.db.length) return [];
+  const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
+  const dlat = (ne.lat - sw.lat) * pad, dlon = (ne.lng - sw.lng) * pad;
+  return sig.db.filter(j => j.lat >= sw.lat - dlat && j.lat <= ne.lat + dlat && j.lon >= sw.lng - dlon && j.lon <= ne.lng + dlon);
+}
+function sigJunctionsNearLine(pts, maxM) {
+  if (!sig.db.length || !pts.length) return [];
+  const step = Math.max(1, Math.floor(pts.length / 80));
+  const sampled = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+  return sig.db.filter(j => sampled.some(p => map.distance([j.lat, j.lon], p) <= maxM));
+}
+
+async function fetchSignalIds(ids) {
+  if (!ids.length) return;
+  try {
+    const r = await fetch(`/api/signals?ids=${ids.join(',')}`);
+    const d = await r.json();
+    if (d.signals) for (const s of d.signals) sig.live.set(s.id, { ...s, localT: Date.now() });
+  } catch {}
+}
+
+function updateSignalMarkers() {
+  const now = Date.now();
+  for (const id of sig.ids) {
+    const s = sig.live.get(id), j = sig.byId.get(id);
+    if (!j) continue;
+    if (!s || s.phase === 'unknown' || s.phase === 'none') {
+      removeSignalMarker(id); continue;
+    }
+    let cd = '';
+    if (s.startTime) {
+      const durations = { green: s.greenTime, red: s.redTime, yellow: s.amberTime };
+      const dur = durations[s.phase] || 0;
+      if (dur > 0) {
+        const elapsed = (now / 1000) - s.startTime;
+        const remaining = Math.max(0, Math.round(dur - elapsed));
+        cd = remaining > 0 ? String(remaining) : '';
+      }
+    }
+    const phase = s.phase === 'yellow' ? 'amber' : s.phase;
+    addSignalMarker(id, j.lat, j.lon, phase, cd);
+  }
+  for (const id of sigMarkers.keys()) if (!sig.ids.has(id)) removeSignalMarker(id);
+  deconflictSignals();
+}
+
+function sigRefresh() {
+  const ids = [...sig.ids];
+  if (!ids.length) return;
+  if (Date.now() - sig.lastFetch < 4000) return;
+  sig.lastFetch = Date.now();
+  fetchSignalIds(ids);
+}
+
+function sigStart() {
+  if (!sig.timer) sig.timer = setInterval(() => { if (sig.ids.size) updateSignalMarkers(); }, 1000);
+  if (!sig.fetchT) sig.fetchT = setInterval(sigRefresh, 15000);
+}
+
+function sigSetIds(ids) {
+  const s = new Set(ids);
+  if (s.size === sig.ids.size && [...s].every(x => sig.ids.has(x))) return;
+  sig.ids = s;
+  if (s.size) { sigRefresh(); sigStart(); }
+  updateSignalMarkers();
+}
+
+// ---- per-tab signal logic ----
+function sigForNearby() {
+  if (mode !== 'nearby' || map.getZoom() < 14) return sigSetIds([]);
+  sigSetIds(sigJunctionsInBounds(map.getBounds()).map(j => j.id));
+}
+function sigForTrack() {
+  if (mode !== 'route' || !track.route) return sigSetIds([]);
+  const pts = track.line ? track.line.getLatLngs() : track.route.stops.map(s => [s.lat, s.lon]);
+  if (track.follow) {
+    const v = track.vehicles.get(track.follow);
+    if (v) {
+      sigSetIds(sig.db.filter(j => map.distance([j.lat, j.lon], [v.lat, v.lon]) <= 500).map(j => j.id));
+      return;
+    }
+  }
+  sigSetIds(sigJunctionsNearLine(pts, 200).map(j => j.id));
+}
+function sigForTrip() {
+  if (mode !== 'trip' || !state.sel) return sigSetIds([]);
+  const o = state.options.find(x => x.key === state.sel);
+  if (!o) return sigSetIds([]);
+  const legs = o.useFork ? o.fork.legs : o.legs;
+  const pts = [];
+  for (const l of legs) {
+    if (l.t !== 'bus') continue;
+    const sl = state.stopLists.get(l.routeId);
+    if (!sl) continue;
+    const bi = sl.idx.get(l.board.id), ai = sl.idx.get(l.alight.id);
+    if (bi != null && ai != null) for (let k = bi; k <= ai; k++) pts.push([sl.stops[k].lat, sl.stops[k].lon]);
+  }
+  sigSetIds(sigJunctionsNearLine(pts, 200).map(j => j.id));
+}
+
+function sigUpdate() {
+  if (mode === 'nearby') sigForNearby();
+  else if (mode === 'route') sigForTrack();
+  else if (mode === 'trip') sigForTrip();
+  else sigSetIds([]);
+}
+
+map.on('moveend', sigUpdate);
+setInterval(sigUpdate, 3000);
 </script>
 </body>
 </html>

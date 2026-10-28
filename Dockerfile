@@ -3,15 +3,19 @@
 # which needs Node's automatic module-syntax detection (Node 20 fails on `export`).
 FROM node:22-alpine
 
+RUN apk add --no-cache python3 py3-cryptography
+
 WORKDIR /app
 ARG APP_VERSION=dev
 ENV APP_VERSION=${APP_VERSION} \
     PORT=3000 \
+    SIGNAL_PORT=3001 \
     NODE_ENV=production
 
 COPY package.json server.js ./
 COPY functions ./functions
 COPY public ./public
+COPY scripts ./scripts
 
 USER node
 EXPOSE 3000

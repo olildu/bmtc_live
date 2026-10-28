@@ -4,12 +4,43 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const PORT = process.env.PORT || 3000;
+const SIGNAL_PORT = process.env.SIGNAL_PORT || 3001;
 const VERSION = process.env.APP_VERSION || 'dev';
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 const API = ['/api/plan', '/api/route', '/api/nearby', '/api/direct', '/api/tometro', '/api/walk'];
+
+// spawn the Python signal sidecar (best-effort; the app works without it)
+const signalScript = path.join(__dirname, 'scripts', 'signal_server.py');
+let signalProc = null;
+function startSignalSidecar() {
+  if (!fs.existsSync(signalScript)) return;
+  signalProc = spawn('python3', [signalScript], {
+    env: { ...process.env, SIGNAL_PORT: String(SIGNAL_PORT) },
+    stdio: ['ignore', 'inherit', 'inherit'],
+  });
+  signalProc.on('exit', (code) => {
+    console.log(`signal sidecar exited (${code})`);
+    signalProc = null;
+    setTimeout(startSignalSidecar, 5000);
+  });
+}
+startSignalSidecar();
+
+function proxySignal(qs, res) {
+  const opts = { hostname: '127.0.0.1', port: SIGNAL_PORT, path: '/api/signals' + qs, timeout: 8000 };
+  const pr = http.get(opts, upstream => {
+    res.writeHead(upstream.statusCode, { 'content-type': 'application/json', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+    upstream.pipe(res);
+  });
+  pr.on('error', () => {
+    if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'signal sidecar unavailable' }));
+  });
+}
 
 http.createServer(async (req, res) => {
   try {
@@ -17,6 +48,9 @@ http.createServer(async (req, res) => {
     if (u.pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       return res.end(JSON.stringify({ ok: true, version: VERSION }));
+    }
+    if (u.pathname === '/api/signals') {
+      return proxySignal(u.search, res);
     }
     if (API.includes(u.pathname)) {
       const { onRequestGet } = await import(`./functions${u.pathname}.js`);

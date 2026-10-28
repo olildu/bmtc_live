@@ -1,0 +1,598 @@
+{
+  "junctions": [
+    {
+      "id": "023MAHALAXMILAYOUTENTRANCE",
+      "name": "Mahalaxmilayoutentrance",
+      "lat": 13.007641,
+      "lon": 77.548767,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "032WINDSORCIRCLE",
+      "name": "Windsorcircle",
+      "lat": 12.993656,
+      "lon": 77.58501,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "033SOPHIAHIGHSCHOOL",
+      "name": "Sophiahighschool",
+      "lat": 12.98651,
+      "lon": 77.58878,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "035BASAWESHWARACIRCLE",
+      "name": "Basaweshwaracircle",
+      "lat": 12.984682,
+      "lon": 77.588283,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "036POLICETHIMMAIAHCIRCLE",
+      "name": "Policethimmaiahcircle",
+      "lat": 12.981868,
+      "lon": 77.594769,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "037KRCIRCLE",
+      "name": "Krcircle",
+      "lat": 12.975846,
+      "lon": 77.58738,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "040ELITE",
+      "name": "Elite",
+      "lat": 12.975162,
+      "lon": 77.576033,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "041GOPALGOWDACIRCLE",
+      "name": "Gopalgowdacircle",
+      "lat": 12.977734,
+      "lon": 77.590861,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "042MINSKSQUARE(CTO)",
+      "name": "Minsksquare(Cto)",
+      "lat": 12.98087,
+      "lon": 77.597402,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "043UPPARPETJUNCTION",
+      "name": "Upparpetjunction",
+      "lat": 12.974292,
+      "lon": 77.574971,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "044SAGARTHEATRE",
+      "name": "Sagartheatre",
+      "lat": 12.974293,
+      "lon": 77.578255,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "045DANVANTHRIROAD",
+      "name": "Danvanthriroad",
+      "lat": 12.975559,
+      "lon": 77.574781,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "048SHANTHALA",
+      "name": "Shanthala",
+      "lat": 12.974671,
+      "lon": 77.570635,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "053THREELET",
+      "name": "Threelet",
+      "lat": 12.984344,
+      "lon": 77.582679,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "063SIDDALINGAIAHCIRCLE",
+      "name": "Siddalingaiahcircle",
+      "lat": 12.972135,
+      "lon": 77.59408,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "075POLICECORNER",
+      "name": "Policecorner",
+      "lat": 12.967525,
+      "lon": 77.587347,
+      "stages": [
+        7
+      ]
+    },
+    {
+      "id": "077HALASURUGATE",
+      "name": "Halasurugate",
+      "lat": 12.966873,
+      "lon": 77.587427,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "079TOWNHALL",
+      "name": "Townhall",
+      "lat": 12.963841,
+      "lon": 77.585233,
+      "stages": [
+        1,
+        4
+      ]
+    },
+    {
+      "id": "080NRROADSPROAD",
+      "name": "Nrroadsproad",
+      "lat": 12.96364,
+      "lon": 77.584149,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "082KRMARKET",
+      "name": "Krmarket",
+      "lat": 12.964074,
+      "lon": 77.576827,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "083ASCHARSTREET",
+      "name": "Ascharstreet",
+      "lat": 12.964471,
+      "lon": 77.573749,
+      "stages": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "092BANGALOREBUILDERS",
+      "name": "Bangalorebuilders",
+      "lat": 12.95951,
+      "lon": 77.555883,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "093TOLLGATEMYSOREROAD",
+      "name": "Tollgatemysoreroad",
+      "lat": 12.957385,
+      "lon": 77.55217,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "095SATELLITEBUSSTAND",
+      "name": "Satellitebusstand",
+      "lat": 12.954311,
+      "lon": 77.544088,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "096GALIANJANEYATEMPLE",
+      "name": "Galianjaneyatemple",
+      "lat": 12.952984,
+      "lon": 77.5417,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "100RICHMONDCIRCLE",
+      "name": "Richmondcircle",
+      "lat": 12.96486,
+      "lon": 77.596955,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "102BMTCKHROAD",
+      "name": "Bmtckhroad",
+      "lat": 12.955749,
+      "lon": 77.592169,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "109DEWANMADHAVARAO",
+      "name": "Dewanmadhavarao",
+      "lat": 12.940656,
+      "lon": 77.573834,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "110BHARATHINURSINGHOME",
+      "name": "Bharathinursinghome",
+      "lat": 12.936898,
+      "lon": 77.573905,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "119MINERVACIRCLE",
+      "name": "Minervacircle",
+      "lat": 12.955145,
+      "lon": 77.58009,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "120LALBAGHMAINGATE",
+      "name": "Lalbaghmaingate",
+      "lat": 12.954308,
+      "lon": 77.585414,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "122SIDDAPURA",
+      "name": "Siddapura",
+      "lat": 12.948876,
+      "lon": 77.593493,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "127SAGARHOSPITAL",
+      "name": "Sagarhospital",
+      "lat": 12.928407,
+      "lon": 77.600572,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "128GORAPPANAPALYA",
+      "name": "Gorappanapalya",
+      "lat": 12.920587,
+      "lon": 77.600196,
+      "stages": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "130GDMARA",
+      "name": "Gdmara",
+      "lat": 12.907271,
+      "lon": 77.600562,
+      "stages": [
+        2,
+        3
+      ]
+    },
+    {
+      "id": "134MICOBANDE",
+      "name": "Micobande",
+      "lat": 12.944425,
+      "lon": 77.602856,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "137MADIWALATRAFFICPS",
+      "name": "Madiwalatraffic PS",
+      "lat": 12.921232,
+      "lon": 77.620283,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "138SARJAPURROADCHECKPOST",
+      "name": "Sarjapurroadcheckpost",
+      "lat": 12.929565,
+      "lon": 77.615166,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "141PALMGROOVE",
+      "name": "Palmgroove",
+      "lat": 12.966493,
+      "lon": 77.613981,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "142LOWERAGRAMROAD",
+      "name": "Loweragramroad",
+      "lat": 12.965315,
+      "lon": 77.617784,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "143ASC",
+      "name": "ASC",
+      "lat": 12.966677,
+      "lon": 77.620597,
+      "stages": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "144COMMANDOHOSPITAL",
+      "name": "Commandohospital",
+      "lat": 12.966008,
+      "lon": 77.625203,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "14817THMAINDOOPANAHALLI",
+      "name": "Thmaindoopanahalli",
+      "lat": 12.963391,
+      "lon": 77.641686,
+      "stages": [
+        1,
+        3
+      ]
+    },
+    {
+      "id": "155KATRIGUPPE",
+      "name": "Katriguppe",
+      "lat": 12.925428,
+      "lon": 77.55003,
+      "stages": [
+        4
+      ]
+    },
+    {
+      "id": "157KADIRENAHALLICROSS",
+      "name": "Kadirenahallicross",
+      "lat": 12.912368,
+      "lon": 77.567315,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "16316THMAINROADBTMLAYOUT",
+      "name": "Thmainroadbtmlayout",
+      "lat": 12.916609,
+      "lon": 77.610155,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "166COFFEEBOARDJUNCTION",
+      "name": "Coffeeboardjunction",
+      "lat": 12.983275,
+      "lon": 77.595771,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "176RAJALAKSHMIKALYANAMANTAPA",
+      "name": "Rajalakshmikalyanamantapa",
+      "lat": 12.917092,
+      "lon": 77.58036,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "177AUROBINDOCIRCLEORR",
+      "name": "Aurobindocircleorr",
+      "lat": 12.916951,
+      "lon": 77.585881,
+      "stages": [
+        1,
+        5
+      ]
+    },
+    {
+      "id": "1799THBLOCK28THMAINJAYANAGAR",
+      "name": "Thblock28Thmainjayanagar",
+      "lat": 12.916736,
+      "lon": 77.595118,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "180SWAGATHPOORNIMATHEATRE",
+      "name": "Swagathpoornimatheatre",
+      "lat": 12.961024,
+      "lon": 77.588285,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "181BILEKAHALLI",
+      "name": "Bilekahalli",
+      "lat": 12.902073,
+      "lon": 77.601231,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "184LALBAGHWESTGATE",
+      "name": "Lalbaghwestgate",
+      "lat": 12.948394,
+      "lon": 77.580031,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "185RVTEACHERSCOLLEGE",
+      "name": "Rvteacherscollege",
+      "lat": 12.943692,
+      "lon": 77.580106,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "1869THCROSS4THMAINJAYANAGAR",
+      "name": "Thcross4Thmainjayanagar",
+      "lat": 12.939405,
+      "lon": 77.580102,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "187SOUTHENDCIRCLE",
+      "name": "Southendcircle",
+      "lat": 12.93677,
+      "lon": 77.580128,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "18827THCROSS4THMAINJAYANAGAR",
+      "name": "Thcross4Thmainjayanagar",
+      "lat": 12.930886,
+      "lon": 77.580205,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "192URVASHITHEATER",
+      "name": "Urvashitheater",
+      "lat": 12.955552,
+      "lon": 77.585708,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "193VASAVICIRCLE",
+      "name": "Vasavicircle",
+      "lat": 12.94825,
+      "lon": 77.576839,
+      "stages": [
+        3
+      ]
+    },
+    {
+      "id": "1979THCROSS24THMAINJPNAGAR",
+      "name": "Thcross24Thmainjpnagar",
+      "lat": 12.910538,
+      "lon": 77.585758,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "202EASTENDCIRCLE",
+      "name": "Eastendcircle",
+      "lat": 12.91671,
+      "lon": 77.596941,
+      "stages": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "203RRMRJUNCTION",
+      "name": "Rrmrjunction",
+      "lat": 12.966988,
+      "lon": 77.594664,
+      "stages": [
+        1
+      ]
+    },
+    {
+      "id": "215VANIVILASJUNCTION",
+      "name": "Vanivilasjunction",
+      "lat": 12.948201,
+      "lon": 77.570177,
+      "stages": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "220PUTTANNA",
+      "name": "Puttanna",
+      "lat": 12.928672,
+      "lon": 77.583848,
+      "stages": [
+        2
+      ]
+    },
+    {
+      "id": "22115THCROSS24THMAINJPNAGAR",
+      "name": "Thcross24Thmainjpnagar",
+      "lat": 12.906229,
+      "lon": 77.585773,
+      "stages": [
+        3
+      ]
+    }
+  ]
+}
