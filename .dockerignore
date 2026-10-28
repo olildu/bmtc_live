@@ -1,5 +1,5 @@
 reverse-engineering
-scripts
+scripts/__pycache__
 deploy
 .git
 .github
