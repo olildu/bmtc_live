@@ -64,6 +64,11 @@
   .nightbar { margin: 6px 6px 2px; padding: 10px 12px; border-radius: 10px; background: #1b2236; border: 1px solid #2c3858; font-size: 12.5px; line-height: 1.5; color: var(--text); }
   .nightbar small { color: var(--muted); }
   .idle-toggle { margin: 6px; width: calc(100% - 12px); border: 1px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; padding: 9px; border-radius: 10px; cursor: pointer; }
+  .ghead { font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; font-weight: 800; color: var(--faint); margin: 14px 4px 7px; }
+  .ghead.reach { color: var(--warn); margin-top: 18px; }
+  .trip.partial .facts .arr { font-size: 16px; font-weight: 700; }
+  .trip.partial .facts .arrl { color: var(--warn); font-weight: 800; }
+  .remainrow { color: var(--warn); font-weight: 700; }
   .warn { color: var(--warn); }
   .when { display: flex; gap: 8px; margin: 8px 18px 0; }
   .when select, .when input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; padding: 7px 8px; color-scheme: dark; }
@@ -915,6 +920,7 @@ function scoreAll() {
   }
 }
 function rankKey(o) {
+  if (o.partial) return 2e7 + o.remainingM;
   const s = o.eff, idle = s.noBus || s.late ? 1e7 : 0, prio = saved.prefs.priority;
   if (state.when.mode === 'by' && prio === 'fastest') return idle - s.leaveAt - (s.metroUsed ? 180 : 0); // latest you can leave
   if (prio === 'walk') return idle + s.walk * 10 + s.secs / 100;
@@ -923,7 +929,7 @@ function rankKey(o) {
 }
 function visibleOptions() {
   const p = saved.prefs;
-  return state.options.filter(o => (p.twoBus || o.kind !== 'transfer') && (p.metro || !(o.kind === 'busmetro' || o.kind === 'metro')))
+  return state.options.filter(o => o.partial || ((p.twoBus || o.kind !== 'transfer') && (p.metro || !(o.kind === 'busmetro' || o.kind === 'metro'))))
     .sort((a, b) => rankKey(a) - rankKey(b));
 }
 
@@ -955,6 +961,14 @@ async function plan() {
     await Promise.all(missing.map(async id => setStops(id, (await getJ(`/api/route?id=${encodeURIComponent(id)}`).catch(() => null))?.stops || [])));
     if (mode !== 'trip' || state.from !== from || state.to !== to) return;
     state.options = prune(opts);
+    for (const pj of (p.partial || [])) {
+      const rides = pj.legs.filter(l => l.mode !== 'walk');
+      if (!rides.length) continue;
+      const kind = rides.filter(l => l.mode === 'bus').length > 1 ? 'transfer' : 'bus';
+      let legs = [], at = from;
+      for (const l of rides) if (l.mode === 'bus') { legs.push(walkLeg(at, l.board), busLeg(l)); at = l.alight; }
+      state.options.push({ key: 'R:' + pj.key, kind, legs, fare: pj.fare, partial: true, remainingM: pj.remainingM, src: 'partial' });
+    }
     computeForks(dSt[0], from, to);
     if (planned()) state.liveSince = Date.now() - SETTLE_MS; // no live data for a later time
     state.freshRender = true; scoreAll(); renderTrip(); drawTrip();
@@ -1043,9 +1057,17 @@ function optCard(o, hero) {
   const svc = firstBus ? serviceLabel(firstBus.tags, firstBus.name) : '';
   if (svc) tags.push(`<span>${svc}</span>`);
   if (o.night) tags.push('<span>night</span>');
-  return `<div class="trip${hero ? ' hero' : ''}${sel ? ' sel' : ''}${idle ? ' idle' : ''}${state.freshRender ? ' build' : ''}" data-opt="${esc(o.key)}">
+  let arrHtml, arrlHtml, durHtml = dur;
+  if (o.partial) {
+    const lastBus = s.steps.filter(x => x.l.t === 'bus').at(-1)?.l;
+    const km = (o.remainingM / 1000).toFixed(1);
+    arrHtml = lastBus ? esc(lastBus.alight.name) : '—';
+    arrlHtml = `${km} km to go`;
+    durHtml = '';
+  } else { arrHtml = idle ? '—' : fmtClock(s.arrive); arrlHtml = 'arrive'; }
+  return `<div class="trip${hero ? ' hero' : ''}${o.partial ? ' partial' : ''}${sel ? ' sel' : ''}${idle ? ' idle' : ''}${state.freshRender ? ' build' : ''}" data-opt="${esc(o.key)}">
     ${ribbonHtml(s)}
-    <div class="facts"><span class="arr">${idle ? '—' : fmtClock(s.arrive)}</span><span class="arrl">arrive</span><span class="dur">${dur}</span>
+    <div class="facts"><span class="arr">${arrHtml}</span><span class="arrl">${arrlHtml}</span><span class="dur">${durHtml}</span>
       <span class="right"><div class="leave${lv.soon ? ' soon' : ''}">${lv.big}</div><div class="sub">${lv.sub}</div></span></div>
     <div class="tags">${tags.join('<span class="x">·</span>')}</div>
     ${forkHtml(o)}
@@ -1083,18 +1105,26 @@ function railHtml(o) {
         rows.push(legRow(lineSeg(x.line), 'metro', `${k ? 'Change · ' : ''}${esc(L2.name)} line · to ${esc(L2.stations[x.j][1])}`, `${Math.abs(x.j - x.i)} stops · scheduled`, `${fmtClock(x.dep)}–${fmtClock(x.arr)}`)); });
     } else rows.push(legRow('', 'metro', 'Metro', '<span class="warn">No train within the hour — service has ended for tonight</span>', ''));
   });
+  if (o.partial) {
+    const km = (o.remainingM / 1000).toFixed(1);
+    const lastBus = s.steps.filter(x => x.l.t === 'bus').at(-1)?.l;
+    const url = lastBus && state.to ? `https://www.google.com/maps/dir/?api=1&origin=${lastBus.alight.lat},${lastBus.alight.lon}&destination=${state.to.lat},${state.to.lon}` : null;
+    const dir = url ? `<a class="maplink" href="${url}" target="_blank" rel="noopener">${icon('nav')}Directions</a>` : '';
+    rows.push(legRow('remainrow', 'pin', `<b>${km} km</b> remaining to destination`, 'Auto, bus or walk from here', dir));
+  }
   const fb = s.steps.find(x => x.l.t === 'bus')?.l;
   const acts = fb && !planned() ? `<div class="leg"><div class="track"></div><div class="tacts"><button class="tbtn" data-notify="${esc(o.key)}">Notify me</button>${s.first?.bus ? `<button class="tbtn" data-track="${esc(o.key)}">Track this bus</button>` : ''}</div></div>` : '';
   return rows.join('') + acts;
 }
 function renderTrip() {
   if (mode !== 'trip') return;
-  const el = $('routes'), all = visibleOptions();
-  if (!state.options.length) { el.innerHTML = '<div class="empty">No way found between these points right now.</div>'; return; }
+  const el = $('routes'), allVis = visibleOptions();
+  const all = allVis.filter(o => !o.partial), partialOpts = allVis.filter(o => o.partial);
+  if (!all.length && !partialOpts.length) { el.innerHTML = '<div class="empty">No way found between these points right now.</div>'; return; }
   const ready = settled(), idleN = ready ? all.filter(o => o.eff.noBus).length : 0;
   const shown = ready && !state.showIdle ? all.filter(o => !o.eff.noBus) : all;
   let html = '';
-  if (state.night && !planned()) html += `<div class="nightbar">🌙 <b>Few or no scheduled trips right now.</b> Showing only buses that are still running.${ready && !shown.length ? '<br><span class="warn">Nothing is heading your way right now. Try again in the morning.</span>' : ''}</div>`;
+  if (state.night && !planned()) html += `<div class="nightbar">🌙 <b>Few or no scheduled trips right now.</b> Showing only buses that are still running.${ready && !shown.length && !partialOpts.length ? '<br><span class="warn">Nothing is heading your way right now. Try again in the morning.</span>' : ''}</div>`;
   if (!ready) html += '<div class="thead">Checking live buses… times update as they come in</div>';
   const w = state.when, whenTxt = w.mode !== 'now' && new Date(w.ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   if (w.mode !== 'now') html += `<div class="thead">Planned for ${w.mode === 'by' ? 'arriving by' : 'leaving at'} <b>${whenTxt}</b> · timetable times, not live</div>`;
@@ -1105,8 +1135,9 @@ function renderTrip() {
     if (list.length) html += `<div class="ghead">${KIND_LABEL[kind]}</div>` + list.map(o => optCard(o, false)).join('');
   }
   if (idleN && !state.showIdle) html += `<button class="idle-toggle" id="showIdle">${idleN} more option${idleN === 1 ? '' : 's'} with no bus coming now · show</button>`;
-  if (!shown.length && !idleN) {
-    const hidden = state.options.filter(o => o.kind === 'transfer').length;
+  if (partialOpts.length) html += `<div class="ghead reach">Gets you closer</div>` + partialOpts.slice(0, 6).map(o => optCard(o, false)).join('');
+  if (!shown.length && !partialOpts.length && !idleN) {
+    const hidden = state.options.filter(o => !o.partial && o.kind === 'transfer').length;
     html += `<div class="empty">${!saved.prefs.twoBus && hidden ? `Every way there needs 2 buses (${hidden} found).<br>Tick <b>2 buses</b> above to see them.` : 'No options match your settings. Try allowing metro or 2 buses.'}</div>`;
   }
   // FLIP: remember where each card was, so a re-rank slides instead of jumping
@@ -1115,8 +1146,9 @@ function renderTrip() {
   if (!reduceMotion) for (const c of el.querySelectorAll('[data-opt]')) { const was = prev.get(c.dataset.opt); if (was != null) { const dy = was - c.getBoundingClientRect().top; if (Math.abs(dy) > 2 && c.animate) c.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.2,.7,.2,1)' }); } }
   state.freshRender = false;
   const best = hero && !hero.eff.noBus ? ` · best arrives <b style="color:var(--text)">${fmtClock(hero.eff.arrive)}</b>` : '';
-  if (w.mode !== 'now') return setStatus(`<b style="color:var(--text)">${shown.length}</b> ways · ${w.mode === 'by' ? 'arrive by' : 'leave at'} ${whenTxt}${hero && !hero.eff.noBus ? ` · leave <b style="color:var(--text)">${fmtClock(hero.eff.leaveAt)}</b>` : ''}`);
-  setStatus(`<b style="color:var(--text)">${shown.length}</b> ways to get there${best}${ready ? ' · live' : ''}${state.night ? ' · night' : ''}`, ready ? 'live' : 'loading');
+  const pN = partialOpts.length ? ` · <b style="color:var(--warn)">${partialOpts.length}</b> get you closer` : '';
+  if (w.mode !== 'now') return setStatus(`<b style="color:var(--text)">${shown.length}</b> ways · ${w.mode === 'by' ? 'arrive by' : 'leave at'} ${whenTxt}${hero && !hero.eff.noBus ? ` · leave <b style="color:var(--text)">${fmtClock(hero.eff.leaveAt)}</b>` : ''}${pN}`);
+  setStatus(`<b style="color:var(--text)">${shown.length}</b> ways to get there${best}${pN}${ready ? ' · live' : ''}${state.night ? ' · night' : ''}`, ready ? 'live' : 'loading');
 }
 $('routes').addEventListener('click', e => {
   const t = e.target;
