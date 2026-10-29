@@ -83,6 +83,13 @@ export async function plan(q) {
   // from the stops a short walk away (and to stops near the destination) turns up direct buses worth walking to.
   // These extra lookups are best-effort and time-boxed, so a slow one can't hold up the main plan.
   const stops = Promise.all([nearbyStops(from).catch(() => []), nearbyStops(to).catch(() => [])]);
+  // probe stops ~4 km around the destination (started early so they resolve while the main plan runs)
+  const probeStops = Promise.allSettled([
+    { lat: to.lat + 0.04, lon: to.lon }, { lat: to.lat - 0.04, lon: to.lon },
+    { lat: to.lat, lon: to.lon + 0.04 }, { lat: to.lat, lon: to.lon - 0.04 },
+    { lat: to.lat + 0.028, lon: to.lon + 0.028 }, { lat: to.lat + 0.028, lon: to.lon - 0.028 },
+    { lat: to.lat - 0.028, lon: to.lon + 0.028 }, { lat: to.lat - 0.028, lon: to.lon - 0.028 },
+  ].map(p => nearbyStops(p)));
   const pass = async when => {
     const main = tripPlans(from, to, when);
     const extra = stops.then(([fs, ts]) =>
@@ -136,52 +143,44 @@ export async function plan(q) {
   }
   const list = [...journeys.values()].sort((a, b) => a.totalTime - b.totalTime).slice(0, MAX_JOURNEYS)
     .map(({ nightPass, ...j }) => ({ ...j, ...(nightPass && !nowKeys.has(j.key) && { night: true }) }));
-  // when few/no routes reach the destination, widen the search: find bus stops ~4 km around
-  // the destination and plan to those, showing them as "gets you closer" partial options
+  // "gets you closer" partial options: plan to stops ~4 km around the destination
+  // (probeStops was started in parallel with the main plan, so it's already resolved)
   let partial = [];
-  if (list.length < MIN_ROUTES) {
-    const R = 0.04, D = R * 0.71; // ~4.4 km cardinal, ~3.1 km diagonal
-    const probes = [
-      { lat: to.lat + R, lon: to.lon }, { lat: to.lat - R, lon: to.lon },
-      { lat: to.lat, lon: to.lon + R }, { lat: to.lat, lon: to.lon - R },
-      { lat: to.lat + D, lon: to.lon + D }, { lat: to.lat + D, lon: to.lon - D },
-      { lat: to.lat - D, lon: to.lon + D }, { lat: to.lat - D, lon: to.lon - D },
-    ];
-    const totalDist = dist(from, to);
-    const seen = new Set();
-    const wideStops = (await Promise.allSettled(probes.map(p => nearbyStops(p))))
-      .flatMap(r => r.status === 'fulfilled' ? r.value : [])
-      .filter(s => seen.has(s.id) ? false : (seen.add(s.id), true))
-      .filter(s => dist(s, to) < totalDist * 0.7);
-    const targets = spread(to, wideStops, 6, 400);
-    if (targets.length) {
-      const times = [now]; if (!planned) times.push(istTomorrow9());
-      const probeIts = (await Promise.allSettled(
-        targets.flatMap(t => times.map(when => tripPlans(from, t, when, 8000)))
-      )).flatMap(r => r.status === 'fulfilled' ? r.value : []);
-      for (const it of probeIts) it._dayStart = now.ms - now.secs * 1000;
-      const mainKeys = new Set([...journeys.keys()]);
-      const pMap = new Map();
-      for (const it of probeIts) {
-        const legs = (it.legs || []).filter(l => l.mode === 'WALK' || ((l.mode === 'BUS' || l.mode === 'METRO') && l.route_id));
-        const rides = legs.filter(l => l.mode !== 'WALK');
-        if (!rides.length) continue;
-        const rkey = rides.map(l => l.route_id).join('|');
-        if (mainKeys.has(rkey)) continue;
-        const alight = legStop(rides.at(-1), 'last');
-        const remainingM = Math.round(dist(alight, to));
-        if (remainingM > totalDist * 0.7) continue;
-        const firstBoard = legStop(rides[0], 'first');
-        if (walkM(from, firstBoard) / WALK_SPEED > MAX_WALK_MIN) continue;
-        const prev = pMap.get(rkey);
-        if (!prev || prev.remainingM > remainingM) {
-          const pLegs = legs.map(l => legOut(it, l));
-          if (pLegs.at(-1)?.mode === 'walk') pLegs.pop();
-          pMap.set(rkey, { key: rkey, legs: pLegs, remainingM, fare: it.total_fare ?? null });
-        }
+  const totalDist = dist(from, to);
+  const seen = new Set();
+  const wideStops = (await probeStops)
+    .flatMap(r => r.status === 'fulfilled' ? r.value : [])
+    .filter(s => seen.has(s.id) ? false : (seen.add(s.id), true))
+    .filter(s => dist(s, to) < totalDist * 0.7);
+  const targets = spread(to, wideStops, 6, 400);
+  if (targets.length) {
+    const times = [now]; if (!planned) times.push(istTomorrow9());
+    const probeIts = (await Promise.allSettled(
+      targets.flatMap(t => times.map(when => tripPlans(from, t, when, 8000)))
+    )).flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    for (const it of probeIts) it._dayStart = now.ms - now.secs * 1000;
+    const mainRouteKeys = new Set([...journeys.values()].map(j =>
+      j.legs.filter(l => l.mode !== 'walk').map(l => l.routeId).join('|')));
+    const pMap = new Map();
+    for (const it of probeIts) {
+      const legs = (it.legs || []).filter(l => l.mode === 'WALK' || ((l.mode === 'BUS' || l.mode === 'METRO') && l.route_id));
+      const rides = legs.filter(l => l.mode !== 'WALK');
+      if (!rides.length) continue;
+      const rkey = rides.map(l => l.route_id).join('|');
+      if (mainRouteKeys.has(rkey)) continue;
+      const alight = legStop(rides.at(-1), 'last');
+      const remainingM = Math.round(dist(alight, to));
+      if (remainingM > totalDist * 0.7) continue;
+      const firstBoard = legStop(rides[0], 'first');
+      if (walkM(from, firstBoard) / WALK_SPEED > MAX_WALK_MIN) continue;
+      const prev = pMap.get(rkey);
+      if (!prev || prev.remainingM > remainingM) {
+        const pLegs = legs.map(l => legOut(it, l));
+        if (pLegs.at(-1)?.mode === 'walk') pLegs.pop();
+        pMap.set(rkey, { key: rkey, legs: pLegs, remainingM, fare: it.total_fare ?? null });
       }
-      partial = [...pMap.values()].sort((a, b) => a.remainingM - b.remainingM).slice(0, 10);
     }
+    partial = [...pMap.values()].sort((a, b) => a.remainingM - b.remainingM).slice(0, 10);
   }
   // stop lists for every bus route used, so the page can tell where each bus is relative to your stops
   const busIds = [...new Set([...list, ...partial].flatMap(j => j.legs.filter(l => l.mode === 'bus').map(l => l.routeId)))].slice(0, (night ? MAX_ROUTES_NIGHT : MAX_ROUTES) + 10);

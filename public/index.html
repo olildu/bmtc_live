@@ -1013,7 +1013,7 @@ setInterval(() => { // tick the live countdowns each second without rebuilding t
     const o = state.options.find(x => x.key === card.dataset.opt); if (!o) continue;
     const s = o.eff, lv = leaveParts(s), le = card.querySelector('.leave'), ar = card.querySelector('.arr');
     if (le) { le.textContent = lv.big; le.classList.toggle('soon', lv.soon); }
-    if (ar && !(s.noBus && settled())) ar.textContent = fmtClock(s.arrive);
+    if (ar && !o.partial && !(s.noBus && settled())) ar.textContent = fmtClock(s.arrive);
   }
 }, 1000);
 
