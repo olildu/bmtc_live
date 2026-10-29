@@ -418,7 +418,7 @@ const glLayer = L.maplibreGL({
   attribution: '&copy; OpenFreeMap &copy; OpenStreetMap · Metro timetable: BMRCL via Vonter/bmrcl-gtfs (ODbL)',
 }).addTo(map);
 
-const state = { from: null, to: null, when: { mode: 'now' }, options: [], sel: null, branch: {}, es: null, refs: new Set(), vehicles: new Map(), etas: new Map(), stopLists: new Map(), night: false, showIdle: false, liveSince: null };
+const state = { from: null, to: null, when: { mode: 'now' }, options: [], sel: null, branch: {}, es: null, refs: new Set(), vehicles: new Map(), etas: new Map(), stopLists: new Map(), routeAlias: new Map(), night: false, showIdle: false, liveSince: null };
 const layers = { lines: L.layerGroup().addTo(map), stops: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), pins: L.layerGroup().addTo(map) };
 const busMarkers = new Map();
 
@@ -695,7 +695,7 @@ const getJ = async u => { const r = await fetch(u); const j = await r.json(); if
 function stopTripLive() {
   if (state.es) { state.es.close(); state.es = null; }
   layers.lines.clearLayers(); layers.stops.clearLayers(); layers.buses.clearLayers(); busMarkers.clear();
-  state.vehicles.clear(); state.etas.clear(); state.refs.clear(); state.liveSince = null;
+  state.vehicles.clear(); state.etas.clear(); state.refs.clear(); state.routeAlias.clear(); state.liveSince = null;
 }
 function setStops(id, stops) { state.stopLists.set(id, { stops, idx: new Map(stops.map((x, k) => [x.id, k])) }); }
 
@@ -992,13 +992,48 @@ function connectTrip() {
   if (!want.size) { state.liveSince = Date.now() - SETTLE_MS; return; }
   for (const ref of want) state.refs.add(ref);
   const es = state.es = liveSocket(state.refs, (parts, key, d) => {
-    if (parts[0] === 'routes' && d._latitude != null)
-      state.vehicles.set(key, { key, routeId: parts[1], vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
-    else if (parts[0] === 'etas') state.etas.set(`${parts[1]}|${parts[2]}|${key}`, d.eta);
+    if (parts[0] === 'routes' && d._latitude != null) {
+      const routeId = state.routeAlias.get(parts[1]) || parts[1];
+      state.vehicles.set(key, { key, routeId, vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
+    } else if (parts[0] === 'etas') { const routeId = state.routeAlias.get(parts[2]) || parts[2]; state.etas.set(`${parts[1]}|${routeId}|${key}`, d.eta); }
   }, () => {
     if (!state.liveSince) {
       state.liveSince = Date.now();
       setTimeout(() => { if (state.es === es) { scoreAll(); renderTrip(); drawTrip(); } }, SETTLE_MS + 300);
+      // after settle, search for siblings of bus routes with 0 vehicles (stale Chalo duplicate IDs)
+      setTimeout(() => {
+        if (state.es !== es) return;
+        const busLegs = new Map();
+        for (const o of state.options) for (const l of o.legs) if (l.t === 'bus') {
+          if (!busLegs.has(l.routeId)) busLegs.set(l.routeId, { name: l.name, legs: new Set() });
+          busLegs.get(l.routeId).legs.add(l);
+        }
+        const dead = [...busLegs.entries()].filter(([rid]) =>
+          ![...state.vehicles.values()].some(v => v.routeId === rid));
+        if (!dead.length) return;
+        const byName = new Map();
+        for (const [rid, info] of dead) {
+          if (!byName.has(info.name)) byName.set(info.name, []);
+          byName.get(info.name).push([rid, info]);
+        }
+        for (const [name, entries] of byName) {
+          routeSearch(name).then(list => {
+            if (state.es !== es) return;
+            for (const [rid, { legs }] of entries) {
+              const orig = list.find(x => x.routeId === rid);
+              if (!orig) continue;
+              const sibs = list.filter(x => x.name === name && x.routeId !== rid && x.from === orig.from && x.to === orig.to);
+              for (const sib of sibs) {
+                state.routeAlias.set(sib.routeId, rid);
+                for (const l of legs)
+                  for (const ref of [`routes:${sib.routeId}`, `etas:${l.board.id}:${sib.routeId}`, `etas:${l.alight.id}:${sib.routeId}`])
+                    if (!state.refs.has(ref)) { state.refs.add(ref); if (state.es?.connected) state.es.emit('subscribe', JSON.stringify({ ref })); }
+              }
+            }
+            scheduleTrip();
+          }).catch(() => {});
+        }
+      }, SETTLE_MS + 2000);
     }
     scheduleTrip();
   });
