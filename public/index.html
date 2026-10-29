@@ -1383,11 +1383,19 @@ async function openRoute(id) {
     updateMyStop();
     track.sock = liveSocket(track.refs, onTrackData, onTrackBatch);
     renderTrack();
-    // the other direction usually has the same name with the ends swapped
+    // the other direction usually has the same name with the ends swapped;
+    // also collect same-direction siblings (Chalo often has stale duplicate route IDs)
     routeSearch(r.name).then(list => {
       const rev = list.find(x => x.name === r.name && x.routeId !== id && x.from === r.to && x.to === r.from);
       if (rev && track.route === r) { track.reverseId = rev.routeId; renderTrack(); }
+      track.siblings = list.filter(x => x.name === r.name && x.routeId !== id && x.from === r.from && x.to === r.to).map(x => x.routeId);
     }).catch(() => {});
+    // if the socket snapshot brings 0 buses, try a sibling route ID (stale Chalo duplicate)
+    setTimeout(() => {
+      if (track.route === r && track.vehicles.size === 0 && track.siblings?.length) {
+        openRoute(track.siblings.shift());
+      }
+    }, 6000);
   } catch (e) { setStatus('Couldn\'t load this route: ' + e.message); }
 }
 
