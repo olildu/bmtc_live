@@ -47,7 +47,8 @@ http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
     if (u.pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      return res.end(JSON.stringify({ ok: true, version: VERSION }));
+      const { cacheStats } = await import('./functions/api/plan.js');
+      return res.end(JSON.stringify({ ok: true, version: VERSION, cache: cacheStats() }));
     }
     if (u.pathname === '/api/signals') {
       return proxySignal(u.search, res);

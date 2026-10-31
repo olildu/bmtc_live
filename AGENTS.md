@@ -105,6 +105,7 @@ There are no tests or build step. To check page JS syntax:
 - ETAs are in **seconds**.
 - The page script runs as a classic script, so a top-level `let`/`const`/`class` must **not** be named after a protected browser global (`top`, `window`, `document`, `location`). It throws "redeclaration of non-configurable global property" and nothing loads. `node --check` and jsdom don't catch this; a real browser does.
 - Upstream call budgets per request (plan ≤ ~48, direct 38, tometro 34) come from the old Cloudflare 50-subrequest limit. The Node server has no such limit, but keep them: fewer calls means less chance of Chalo blocking the server's IP.
+- **Every Chalo call is cached in memory** by `getJson()` in `plan.js`: `routedetails`, `search` and `routesbetweenstops` for 6 h, `nearby/stops` for 24 h, `tripplanner` for 10 min (its start time is rounded to the minute so repeats hit). Identical calls in flight share one request, errors aren't cached, and it's capped at 50 MB. `/healthz` shows `cache: {entries, mb, hits, misses}`. A restart (each release) empties it. Chalo calls made any other way bypass it.
 - CARTO basemaps now need an API key, so don't switch back to them. OpenFreeMap needs no key.
 - The repo's code and commits must **not** mention Claude or AI, and must not include co-author trailers.
 
@@ -118,7 +119,6 @@ There are no tests or build step. To check page JS syntax:
 
 - **Destination-only mode** (every route serving the destination stop, from anywhere) needs a stop-to-routes endpoint. See "What did NOT work" in `FINDINGS.md` for candidates.
 - **Transfers:** routes needing a transfer show as separate legs, not one planned journey.
-- **No caching:** `routedetails` responses aren't cached in the Function (they could go in KV or the Cache API).
 - **Recovering from blocks:** if Chalo blocks the oci-arm IP, try other headers first, then a different host (oci-amd is free).
 
 ## Regenerating the decompiled code

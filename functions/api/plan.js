@@ -24,10 +24,49 @@ export function istTomorrow9() {
   return { secs: 9 * 3600, day: DAYS[new Date(ms + 5.5 * 3600e3).getUTCDay()], ms };
 }
 
-export async function getJson(url, timeoutMs = 20000) {
+// In-memory cache for every Chalo call (one long-running Node process). Fewer upstream calls means less chance of
+// Chalo blocking the server's IP. Identical calls in flight share one request; errors aren't cached. Bodies are
+// stored as text and parsed per hit, so callers can't change each other's results.
+const TTL = [
+  [/\/routedetails\?|\/search\?|\/routesbetweenstops\?/, 6 * 3600e3], // static per route/stop pair (and day)
+  [/\/nearby\/stops\?/, 24 * 3600e3],                                 // stops don't move
+  [/\/tripplanner\?/, 10 * 60e3],                                     // keyed on the start minute
+];
+const MAX_BYTES = 50e6;
+const cache = new Map(); // url -> {exp, text?, p?}; Map order = oldest first
+let bytes = 0, hits = 0, misses = 0;
+export const cacheStats = () => ({ entries: cache.size, mb: +(bytes / 1e6).toFixed(1), hits, misses });
+
+async function fetchText(url, timeoutMs) {
   const r = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs) });
-  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
-  return r.json();
+  const text = await r.text();
+  if (!r.ok) throw new Error(`${r.status} ${text.slice(0, 200)}`);
+  return text;
+}
+
+export async function getJson(url, timeoutMs = 20000) {
+  const ttl = TTL.find(([re]) => re.test(url))?.[1];
+  if (!ttl) return JSON.parse(await fetchText(url, timeoutMs));
+  const e = cache.get(url);
+  if (e && e.exp > Date.now()) { hits++; return JSON.parse(e.text ?? await e.p); }
+  if (e) { cache.delete(url); bytes -= e.text?.length || 0; }
+  misses++;
+  const entry = { exp: Date.now() + ttl, p: fetchText(url, timeoutMs) };
+  cache.set(url, entry);
+  try {
+    entry.text = await entry.p;
+  } catch (err) {
+    if (cache.get(url) === entry) cache.delete(url);
+    throw err;
+  }
+  delete entry.p;
+  bytes += entry.text.length;
+  for (const [k, v] of cache) {
+    if (bytes <= MAX_BYTES) break;
+    if (v.text === undefined) continue;
+    cache.delete(k); bytes -= v.text.length;
+  }
+  return JSON.parse(entry.text);
 }
 
 async function routeDetails(routeId, day) {
@@ -57,8 +96,10 @@ export const WALK_SPEED = 80; // m/min
 const MAX_WALK_MIN = 35, MAX_ROUTES = 30, MAX_ROUTES_NIGHT = 20, MIN_ROUTES = 5, MAX_JOURNEYS = 25;
 
 export async function tripPlans(f, t, when, timeoutMs) {
+  // start on the minute so repeat plans within a minute hit the cache (IST is a whole number of minutes from UTC)
+  const secs = when.secs - when.secs % 60, ms = when.ms - when.ms % 60e3;
   const j = await getJson(`${API}/v5/BENGALURU/tripplanner?from_lat=${f.lat}&from_lon=${f.lon}&to_lat=${t.lat}&to_lon=${t.lon}` +
-    `&mode=transit&start_time=${when.secs}&day=${when.day}&startTimeMillis=${when.ms}`, timeoutMs);
+    `&mode=transit&start_time=${secs}&day=${when.day}&startTimeMillis=${ms}`, timeoutMs);
   return [...(j.payload?.itineraries || []), ...(j.payload?.nearbyItineraries || [])];
 }
 // the up-to-20 bus stops nearest a point (about 1 km), nearest first
