@@ -109,6 +109,8 @@
   .trip { padding: 12px 4px 13px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .trip:last-child { border-bottom: 0; }
   .trip.idle { opacity: .5; }
+  .trip.missed { opacity: .75; }
+  .tags .missedtag { color: var(--warn); font-weight: 700; }
   .ribbon { display: flex; height: 25px; border-radius: 5px; overflow: hidden; gap: 2px; }
   .seg { display: flex; align-items: center; justify-content: center; min-width: 16px; font-size: 12px; font-weight: 800; white-space: nowrap; padding: 0 7px; gap: 4px; overflow: hidden; transform-origin: left center; }
   .seg .ic { width: 13px; height: 13px; }
@@ -917,7 +919,23 @@ function scoreAll() {
     o.useFork = !!o.fork && state.branch[o.key] === 'metro';
     o.eff = o.useFork ? o.forkScore : o.main;
     o.fareTotal = fareOf(o, o.useFork ? o.fork.legs : o.legs);
+    trackMissed(o);
   }
+}
+// "just missed": when the bus an option was counting on reaches (or passes) your stop before you could get there, the
+// option stays on screen for MISSED_MS with a label instead of silently folding into "more options with no bus"
+const MISSED_MS = 90e3;
+function trackMissed(o) {
+  const s = o.eff, was = o.caught;
+  o.caught = !s.noBus && s.first?.bus ? { key: s.first.bus.key, vNo: s.first.bus.vNo, l: s.first.l } : null;
+  if (o.caught || !s.noBus || planned()) { o.missed = null; return; }
+  if (!o.missed && was) {
+    // a numeric ETA means the bus is still reported: it passed (-1) or is now too close to reach. No ETA = data gap.
+    const eb = state.etas.get(`${was.l.board.id}|${was.l.routeId}|${was.key}`);
+    if (typeof eb === 'number') o.missed = { at: Date.now(), vNo: was.vNo, stop: was.l.board.name };
+  }
+  if (o.missed && Date.now() - o.missed.at > MISSED_MS) { o.missed = null; scheduleTrip(); }
+  s.missed = o.missed;
 }
 function rankKey(o) {
   if (o.partial) return 2e7 + o.remainingM;
@@ -1022,7 +1040,8 @@ function connectTrip() {
             for (const [rid, { legs }] of entries) {
               const orig = list.find(x => x.routeId === rid);
               if (!orig) continue;
-              const sibs = list.filter(x => x.name === name && x.routeId !== rid && x.from === orig.from && x.to === orig.to);
+              // never alias a route other options already use: it would take their buses away from them
+              const sibs = list.filter(x => x.name === name && x.routeId !== rid && x.from === orig.from && x.to === orig.to && !busLegs.has(x.routeId));
               for (const sib of sibs) {
                 state.routeAlias.set(sib.routeId, rid);
                 for (const l of legs)
@@ -1075,6 +1094,7 @@ function ribbonHtml(s) {
 }
 function leaveParts(s) {
   if (planned()) return { big: s.noBus ? '—' : fmtClock(s.leaveAt), sub: s.late ? 'too late' : 'leave', soon: s.late };
+  if (s.missed) return { big: 'missed', sub: 'just now', soon: true };
   if (s.noBus && settled()) return { big: '—', sub: 'no bus', soon: false };
   if (s.first) { const m = Math.round(s.first.leaveIn / 60); return { big: m <= 0 ? 'now' : m + ' min', sub: 'to leave', soon: s.first.leaveIn < 180 }; }
   return { big: '…', sub: 'to leave', soon: false };
@@ -1084,6 +1104,7 @@ function optCard(o, hero) {
   const lv = leaveParts(s), firstBus = s.steps.find(x => x.l.t === 'bus')?.l;
   const dur = idle ? '' : mins(planned() ? s.arrive - s.leaveAt : s.secs) + ' min';
   const tags = [];
+  if (s.missed) tags.push(`<span class="missedtag">Just missed${s.missed.vNo ? ` ${esc(s.missed.vNo)}` : ''}</span>`);
   if (o.fareTotal != null) tags.push(`<span class="fare">₹${o.fareTotal}</span>`);
   tags.push(`<span class="wk">${icon('walk')}${mins(s.walk)} min</span>`);
   if (s.live) tags.push('<span class="live">live</span>');
@@ -1100,7 +1121,7 @@ function optCard(o, hero) {
     arrlHtml = `${km} km to go`;
     durHtml = '';
   } else { arrHtml = idle ? '—' : fmtClock(s.arrive); arrlHtml = 'arrive'; }
-  return `<div class="trip${hero ? ' hero' : ''}${o.partial ? ' partial' : ''}${sel ? ' sel' : ''}${idle ? ' idle' : ''}${state.freshRender ? ' build' : ''}" data-opt="${esc(o.key)}">
+  return `<div class="trip${hero ? ' hero' : ''}${o.partial ? ' partial' : ''}${sel ? ' sel' : ''}${idle ? ' idle' : ''}${s.missed ? ' missed' : ''}${state.freshRender ? ' build' : ''}" data-opt="${esc(o.key)}">
     ${ribbonHtml(s)}
     <div class="facts"><span class="arr">${arrHtml}</span><span class="arrl">${arrlHtml}</span><span class="dur">${durHtml}</span>
       <span class="right"><div class="leave${lv.soon ? ' soon' : ''}">${lv.big}</div><div class="sub">${lv.sub}</div></span></div>
@@ -1132,7 +1153,8 @@ function railHtml(o) {
     } else if (l.t === 'bus') {
       let sub, time = '';
       if (st.plan) { sub = `${st.plan.how === 'scheduled' ? 'Scheduled' : 'Estimated'} · ride ${mins(st.ride)} min${st.wait > 90 ? ` · wait ~${mins(st.wait)} min` : ''}`; time = `${fmtClock(st.plan.dep)}–${fmtClock(st.plan.arr)}`; }
-      else if (st.none) sub = st.est ? `~${mins(st.ride)} min ride · no live bus yet, estimated` : 'No live bus coming yet';
+      else if (st.none) sub = st.est ? `~${mins(st.ride)} min ride · no live bus yet, estimated`
+        : s.missed ? `<span class="warn">Just missed ${esc(s.missed.vNo || 'the bus')} at ${esc(s.missed.stop)}</span> · no other live bus coming yet` : 'No live bus coming yet';
       else sub = `${esc(st.bus.vNo || 'Bus')} in ${fmtEta(st.bus.eb)} · ride ${mins(st.ride)} min${st.bus.liveRide ? ' · live' : ''}`;
       rows.push(legRow(busSeg(l.name, l.tags), 'bus', `Bus ${esc(l.name)} · to ${esc(l.alight.name)}`, sub, time));
     } else if (st.sched) {
@@ -1156,14 +1178,14 @@ function renderTrip() {
   const el = $('routes'), allVis = visibleOptions();
   const all = allVis.filter(o => !o.partial), partialOpts = allVis.filter(o => o.partial);
   if (!all.length && !partialOpts.length) { el.innerHTML = '<div class="empty">No way found between these points right now.</div>'; return; }
-  const ready = settled(), idleN = ready ? all.filter(o => o.eff.noBus).length : 0;
-  const shown = ready && !state.showIdle ? all.filter(o => !o.eff.noBus) : all;
+  const ready = settled(), idleN = ready ? all.filter(o => o.eff.noBus && !o.eff.missed).length : 0;
+  const shown = ready && !state.showIdle ? all.filter(o => !o.eff.noBus || o.eff.missed) : all;
   let html = '';
   if (state.night && !planned()) html += `<div class="nightbar">🌙 <b>Few or no scheduled trips right now.</b> Showing only buses that are still running.${ready && !shown.length && !partialOpts.length ? '<br><span class="warn">Nothing is heading your way right now. Try again in the morning.</span>' : ''}</div>`;
   if (!ready) html += '<div class="thead">Checking live buses… times update as they come in</div>';
   const w = state.when, whenTxt = w.mode !== 'now' && new Date(w.ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   if (w.mode !== 'now') html += `<div class="thead">Planned for ${w.mode === 'by' ? 'arriving by' : 'leaving at'} <b>${whenTxt}</b> · timetable times, not live</div>`;
-  const hero = shown[0];
+  const hero = shown.find(o => !o.eff.missed); // a missed option is never the "best way"
   if (hero) html += `<div class="eyebrow best">${w.mode === 'by' ? 'Leave latest' : w.mode === 'at' ? 'Best way then' : 'Best way right now'}</div>` + optCard(hero, true);
   for (const kind of ['bus', 'busmetro', 'metro', 'transfer']) {
     const list = shown.filter(o => o !== hero && o.kind === kind).slice(0, kind === 'bus' ? 6 : 4);
@@ -2452,6 +2474,134 @@ function sigUpdate() {
 
 map.on('moveend', sigUpdate);
 setInterval(sigUpdate, 3000);
+
+// --- local debug logging: only on localhost / 127.0.0.1, never in production. Logs to the console and ships batches to
+// the dev server (POST /api/_log → logs/client.log). It only wraps existing functions; app behaviour is unchanged.
+if (['localhost', '127.0.0.1'].includes(location.hostname)) (() => {
+  const t0 = Date.now(), buf = [], oFetch = window.fetch.bind(window);
+  const log = (tag, msg, data) => {
+    console.debug(`%c[${tag}]%c +${((Date.now() - t0) / 1000).toFixed(1)}s ${msg}`, 'color:#4ade80', '', data ?? '');
+    buf.push({ t: new Date().toISOString(), tag, msg, ...(data === undefined ? {} : { data }) });
+  };
+  const ship = () => {
+    if (!buf.length) return;
+    const body = JSON.stringify(buf.splice(0));
+    oFetch('/api/_log', { method: 'POST', body, keepalive: body.length < 60000 }).catch(() => {});
+  };
+  setInterval(ship, 2000); addEventListener('pagehide', ship);
+  window.dbg = log;
+  const wrap = (name, fn) => { const f = window[name]; if (typeof f === 'function') window[name] = fn(f); else log('debug', `can't wrap ${name}`); };
+
+  // network and errors
+  window.fetch = async (u, o) => {
+    const s = performance.now(), url = String(u);
+    try { const r = await oFetch(u, o); log('net', `${r.status} ${url} ${Math.round(performance.now() - s)}ms`); return r; }
+    catch (e) { log('net', `FAILED ${url} ${Math.round(performance.now() - s)}ms: ${e}`); throw e; }
+  };
+  addEventListener('error', e => log('error', String(e.message), { src: e.filename, line: e.lineno, col: e.colno, stack: e.error?.stack }));
+  addEventListener('unhandledrejection', e => log('error', `unhandled rejection: ${e.reason?.message || e.reason}`, { stack: e.reason?.stack }));
+
+  // tabs, route tracking, nearby, alerts
+  wrap('setMode', f => m => { if (m !== mode) log('ui', `tab ${mode} → ${m}`); return f(m); });
+  wrap('openRoute', f => id => { log('track', `open route ${id}`); return f(id); });
+  wrap('trackBus', f => (routeId, key) => { log('track', `follow bus ${key} on ${routeId}`); return f(routeId, key); });
+  wrap('stopTrack', f => () => { log('track', 'stop'); return f(); });
+  wrap('startNearby', f => () => { log('nearby', 'start', { me: state.from }); return f(); });
+  wrap('stopNearby', f => () => { log('nearby', 'stop'); return f(); });
+  wrap('addAlert', f => a => { log('alert', `add: ${a.label}`, a); return f(a); });
+  wrap('fireAlert', f => (a, text) => { log('alert', `fire: ${text}`); return f(a, text); });
+
+  // live socket: lifecycle, malformed messages, ETA updates without a usable eta, and a 15 s summary per socket
+  let sockN = 0;
+  wrap('liveSocket', f => (refs, onData, onBatch, quiet) => {
+    const id = ++sockN, st = { msgs: 0, items: 0, etaMissing: 0, etaPassed: 0 };
+    log('sock', `#${id} open with ${refs.size} refs`, [...refs]);
+    const sock = f(refs, (parts, key, d) => {
+      st.items++;
+      if (parts[0] === 'etas') {
+        if (typeof d.eta !== 'number') { st.etaMissing++; log('eta', `#${id} ETA update with no numeric eta`, { ref: parts.join(':'), key, d }); }
+        else if (d.eta < 0) st.etaPassed++;
+      }
+      onData(parts, key, d);
+    }, onBatch, quiet);
+    sock.on('connect', () => log('sock', `#${id} connected`));
+    sock.on('disconnect', r => log('sock', `#${id} disconnected: ${r}`));
+    sock.on('connect_error', e => log('sock', `#${id} connect error: ${e?.message || e}`));
+    sock.on('message', raw => {
+      st.msgs++;
+      let m; try { m = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return log('sock', `#${id} unparseable message`, String(raw).slice(0, 300)); }
+      if (!m?.ref || !m.res) log('sock', `#${id} message without ref/res`, m);
+    });
+    const iv = setInterval(() => { log('sock', `#${id} last 15 s`, { ...st, refs: refs.size }); for (const k in st) st[k] = 0; }, 15000);
+    const close = sock.close.bind(sock);
+    sock.close = () => { clearInterval(iv); log('sock', `#${id} closed`); return close(); };
+    return sock;
+  });
+
+  // Plan trip: planning, subscriptions, and every change in an option's live state, with the reason
+  const optLabel = o => o.legs.filter(l => l.t !== 'walk').map(l => l.t === 'bus' ? l.name : `metro ${l.from}→${l.to}`).join(' + ') + (o.partial ? ' (partial)' : '');
+  const ageS = ms => ms ? Math.round((Date.now() - ms) / 1000) + 's' : '?';
+  // why each bus on the option's first bus leg is or isn't catchable (mirrors catchBus)
+  const explain = o => {
+    let ready = 0;
+    for (const l of (o.useFork ? o.fork.legs : o.legs)) {
+      if (l.t === 'walk') { ready += walkSecs(l.from, l.to); continue; }
+      if (l.t !== 'bus') return { firstRide: 'metro' };
+      const why = eb => eb === undefined ? 'no ETA at your stop' : typeof eb !== 'number' ? `ETA not a number (${eb})` : eb < 0 ? 'already passed (eta -1)'
+        : eb < ready - 30 ? `reaches your stop in ${Math.round(eb / 60)} min, before you can walk there (${Math.round(ready / 60)} min)` : 'catchable';
+      const pre = `${l.board.id}|${l.routeId}|`, seen = new Set();
+      const buses = [...state.vehicles.values()].filter(v => v.routeId === l.routeId).map(v => {
+        seen.add(v.key);
+        const eb = state.etas.get(pre + v.key);
+        return { bus: v.vNo || v.key, etaBoard: eb, etaAlight: state.etas.get(`${l.alight.id}|${l.routeId}|${v.key}`), posAge: ageS(v.ts), why: why(eb) };
+      });
+      // ETAs for buses with no position: catchBus only looks at buses with a position, so these are ignored
+      for (const [k, eb] of state.etas) if (k.startsWith(pre) && !seen.has(k.slice(pre.length)))
+        buses.push({ bus: k.slice(pre.length), etaBoard: eb, why: 'ETA but no position yet (ignored by catchBus)' });
+      return { route: l.name, routeId: l.routeId, board: l.board.name, alight: l.alight.name, walkToStop: Math.round(ready) + 's',
+        aliases: [...state.routeAlias].filter(([, r]) => r === l.routeId).map(([s]) => s), buses };
+    }
+    return {};
+  };
+  const prevSig = new Map(); let lastShown = '';
+  wrap('plan', f => async () => {
+    const s = performance.now(), { from, to, when } = state;
+    prevSig.clear(); lastShown = '';
+    log('plan', 'start', { from, to, when });
+    await f();
+    const by = {}; for (const o of state.options) { const k = o.kind + (o.partial ? ' (partial)' : ''); by[k] = (by[k] || 0) + 1; }
+    log('plan', `done in ${Math.round(performance.now() - s)}ms: ${state.options.length} options`, { by, night: state.night, options: state.options.map(o => `${optLabel(o)} [${o.key}]`) });
+  });
+  wrap('connectTrip', f => () => { f(); log('live', `Plan trip subscribed to ${state.refs.size} refs`); });
+  wrap('scoreAll', f => () => {
+    f();
+    if (mode !== 'trip') return;
+    for (const o of state.options) {
+      const s = o.eff; if (!s) continue;
+      const st = s.steps.find(x => x.l.t === 'bus' || x.l.t === 'metro');
+      const sig = o.partial ? 'partial' : s.missed ? `JUST MISSED ${s.missed.vNo || ''}` : s.noBus ? 'NO BUS' : st?.bus ? `bus ${st.bus.vNo || st.bus.key}` : st?.sched ? 'metro (scheduled)' : st?.plan ? 'planned' : 'estimate';
+      const p = prevSig.get(o.key);
+      if (p === sig) continue;
+      prevSig.set(o.key, sig);
+      log('trip', `${optLabel(o)}: ${p ?? 'new'} → ${sig}${settled() ? '' : ' (still settling)'}`, explain(o));
+    }
+  });
+  wrap('renderTrip', f => () => {
+    f();
+    if (mode !== 'trip') return;
+    const ready = settled(), vis = visibleOptions().filter(o => !o.partial), shown = ready && !state.showIdle ? vis.filter(o => !o.eff.noBus || o.eff.missed) : vis;
+    const sig = shown.map(o => o.key).join(',') + '|' + ready;
+    if (sig === lastShown) return;
+    const before = new Set(lastShown.split('|')[0].split(',').filter(Boolean)), now = new Set(shown.map(o => o.key));
+    lastShown = sig;
+    const gone = [...before].filter(k => !now.has(k)).map(k => state.options.find(o => o.key === k)).filter(Boolean);
+    log('render', `${shown.length} cards (settled: ${ready}), best: ${shown[0] ? optLabel(shown[0]) : 'none'}`, {
+      order: shown.slice(0, 12).map(optLabel),
+      removed: gone.map(o => ({ option: optLabel(o), why: o.eff.noBus ? 'no catchable bus → folded into "more options with no bus"' : 'hidden by settings', detail: explain(o) })),
+    });
+  });
+  log('debug', `local logging on (${location.href})`);
+})();
 </script>
 </body>
 </html>

@@ -44,19 +44,28 @@ async function fetchText(url, timeoutMs) {
   return text;
 }
 
+// local builds only (release images set APP_VERSION to the tag): one line per upstream call
+const DEV = (globalThis.process?.env?.APP_VERSION || 'dev') === 'dev';
+const dlog = DEV ? (how, url, t0, extra = '') => console.log(`[chalo] ${how} ${Date.now() - t0}ms ${url.replace(API, '')}${extra}`) : () => {};
+
 export async function getJson(url, timeoutMs = 20000) {
-  const ttl = TTL.find(([re]) => re.test(url))?.[1];
-  if (!ttl) return JSON.parse(await fetchText(url, timeoutMs));
+  const ttl = TTL.find(([re]) => re.test(url))?.[1], t0 = Date.now();
+  if (!ttl) {
+    try { const j = JSON.parse(await fetchText(url, timeoutMs)); dlog('FETCH', url, t0); return j; }
+    catch (err) { dlog('ERROR', url, t0, ` → ${err.message || err}`); throw err; }
+  }
   const e = cache.get(url);
-  if (e && e.exp > Date.now()) { hits++; return JSON.parse(e.text ?? await e.p); }
+  if (e && e.exp > Date.now()) { hits++; const j = JSON.parse(e.text ?? await e.p); dlog(e.text ? 'HIT' : 'SHARED', url, t0); return j; }
   if (e) { cache.delete(url); bytes -= e.text?.length || 0; }
   misses++;
   const entry = { exp: Date.now() + ttl, p: fetchText(url, timeoutMs) };
   cache.set(url, entry);
   try {
     entry.text = await entry.p;
+    dlog('MISS', url, t0);
   } catch (err) {
     if (cache.get(url) === entry) cache.delete(url);
+    dlog('ERROR', url, t0, ` → ${err.message || err}`);
     throw err;
   }
   delete entry.p;
