@@ -15,6 +15,7 @@ ENV APP_VERSION=${APP_VERSION} \
 COPY package.json server.js ./
 COPY functions ./functions
 COPY public ./public
+COPY data ./data
 COPY scripts ./scripts
 
 USER node

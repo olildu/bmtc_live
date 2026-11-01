@@ -59,6 +59,53 @@
     display: grid; place-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.5); padding: 0; }
   .map-btn svg { width: 20px; height: 20px; }
   .map-btn.on { color: #4285f4; }
+  /* timetable (Track route → Timetable) */
+  body:not(.tt) .tt-only, body:not(.tt-ab) .tt-ab-only { display: none !important; }
+  body.tt #track, body.tt.tt-ab .field.route-only, body.tt.tt-night .field.route-only { display: none !important; }
+  .tt-switch { display: flex; margin: 0 18px 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+  .tt-switch button { flex: 1; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; padding: 7px 4px; border-radius: 8px; cursor: pointer; }
+  .tt-switch button.on { background: var(--line2); color: var(--text); }
+  .tt-switch.sub { margin-top: -2px; } .tt-switch.sub button { font-size: 12px; padding: 6px 4px; }
+  .tt-ab { margin: 0 18px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+  .tt-abrow { display: flex; align-items: center; gap: 9px; padding: 0 11px; } .tt-abrow + .tt-abrow { border-top: 1px solid var(--line); }
+  .tt-in { position: relative; flex: 1; min-width: 0; }
+  .tt-in input { width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 14px; padding: 10px 0; outline: none; }
+  .tt-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; } .tt-dot.a { background: #4285f4; } .tt-dot.b { background: #ea4335; }
+  .tt-badge { font-size: 11.5px !important; padding: 1px 6px !important; border-radius: 6px !important; }
+  .tt-tag { font-size: 10.5px; padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(96,165,250,.4); color: var(--accent2); }
+  .tt-dir { font-size: 13px; margin-top: 9px; line-height: 1.45; } .tt-dir b { font-weight: 600; }
+  .tt-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 11px; }
+  .tt-stat { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 9px; min-width: 0; }
+  .tt-stat .v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; } .tt-stat .k { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .tt-stop { margin-top: 11px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+  .tt-stop select { flex: 1; min-width: 0; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 12.5px; padding: 6px 7px; }
+  .tt-next { display: flex; gap: 6px; margin: 0 6px; }
+  .tt-nx { flex: 1; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; min-width: 0; }
+  .tt-nx:first-child { border-color: var(--accent); } .tt-nx .t { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tt-nx .in { font-size: 12px; color: var(--muted); } .tt-nx:first-child .in { color: var(--accent); font-weight: 600; }
+  .tt-cap { margin: -2px 8px 7px; font-size: 11.5px; color: var(--faint); line-height: 1.45; } .tt-cap b { color: var(--muted); font-weight: 600; }
+  .tt-grid { margin: 0 6px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .tt-hr { display: grid; grid-template-columns: 38px 1fr; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .tt-hr:last-child { border-bottom: 0; } .tt-hr .h { padding: 7px 0 7px 10px; font-weight: 700; font-size: 13px; color: var(--muted); background: var(--panel2); }
+  .tt-hr .m { display: flex; flex-wrap: wrap; gap: 3px 9px; padding: 7px 10px; font-size: 13px; } .tt-hr.past .m { color: var(--faint); } .tt-hr.now .h { color: var(--text); }
+  .tt-m-past { color: var(--faint); } .tt-m-next { color: #0b0d10; background: var(--accent); border-radius: 5px; padding: 0 4px; font-weight: 700; }
+  .tt-row { padding: 9px 12px; margin: 0 6px; border-bottom: 1px solid var(--line); font-size: 12.5px; cursor: pointer; }
+  .tt-row:hover { background: var(--panel2); } .tt-row .l { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  .tt-row .l > span:last-child { color: var(--muted); white-space: nowrap; } .tt-row small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+  .tt-times { display: none; flex-wrap: wrap; gap: 3px 9px; margin-top: 7px; font-size: 12.5px; font-variant-numeric: tabular-nums; } .tt-row.open .tt-times, .tt-times.show { display: flex; }
+  .tt-jr { margin: 0 6px 6px; background: var(--panel2); border: 1px solid var(--line); border-radius: 11px; padding: 10px 11px; font-size: 12.5px; }
+  .tt-jr .top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; row-gap: 2px; } .tt-jr .t { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tt-jr .in { color: var(--accent); font-weight: 600; font-size: 12px; white-space: nowrap; }
+  .tt-jr .arr { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; } .tt-jr .arr b { color: var(--text); font-size: 14px; }
+  .tt-jr .rides { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .tt-jr .chg { color: var(--faint); font-size: 11.5px; }
+  .tt-jr .how { color: var(--muted); margin-top: 6px; line-height: 1.55; } .tt-jr .how b { color: var(--text); font-weight: 600; }
+  .tt-warn { margin: 8px 6px 0; padding: 9px 11px; border-radius: 9px; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); color: var(--warn); font-size: 12px; line-height: 1.45; }
+  .tt-foot { margin: 14px 8px 4px; font-size: 11.5px; color: var(--faint); line-height: 1.5; } .tt-foot a { color: var(--muted); }
+  #searchArea { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; display: none; align-items: center; gap: 7px;
+    border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit; font-size: 13px; font-weight: 600;
+    padding: 9px 16px; border-radius: 20px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.55); white-space: nowrap; }
+  #searchArea.on { display: inline-flex; }
+  #searchArea svg { width: 15px; height: 15px; }
   .tag.ac { color: #22d3ee; border-color: rgba(34,211,238,.4); }
   .tag.fare { color: var(--text); }
   .nightbar { margin: 6px 6px 2px; padding: 10px 12px; border-radius: 10px; background: #1b2236; border: 1px solid #2c3858; font-size: 12.5px; line-height: 1.5; color: var(--text); }
@@ -371,6 +418,12 @@
       <label class="chip tog"><input type="checkbox" id="optMetro" checked>Metro</label>
       <label class="chip tog"><input type="checkbox" id="optTwoBus">2 buses</label>
     </div>
+    <div class="tt-switch route-only" id="ttSwitch"><button data-v="live" class="on">Live buses</button><button data-v="tt">Timetable</button></div>
+    <div class="tt-switch sub route-only tt-only" id="ttMode"><button data-m="route" class="on">By route</button><button data-m="ab">From → To</button><button data-m="night">Night buses</button></div>
+    <div class="tt-ab route-only tt-ab-only">
+      <div class="tt-abrow"><i class="tt-dot a"></i><div class="tt-in"><input id="ttFrom" placeholder="From: my location" autocomplete="off"><div class="sugg" id="ttFromSugg"></div></div></div>
+      <div class="tt-abrow"><i class="tt-dot b"></i><div class="tt-in"><input id="ttTo" placeholder="To: search a place" autocomplete="off"><div class="sugg" id="ttToSugg"></div></div></div>
+    </div>
     <div class="field route-only">
       <label>Route</label>
       <input id="routeQ" placeholder="Route number, e.g. 500-D" autocomplete="off" autocapitalize="characters">
@@ -380,8 +433,10 @@
     <div id="status"><span class="dot" id="dot"></span><span id="statusText">Set a destination to begin</span></div>
     <div id="routes" class="trip-only"><div class="empty">No destination yet.<br>Search above or click on the map.</div></div>
     <div id="track" class="route-only"></div>
+    <div id="tt" class="route-only tt-only"></div>
     <div class="toggles nearby-only">
-      <label>Show buses within <select id="radius"><option value="500">500 m</option><option value="1000" selected>1 km</option><option value="2000">2 km</option></select> of you</label>
+      <label id="radiusLbl">Show buses within <select id="radius"><option value="500">500 m</option><option value="1000" selected>1 km</option><option value="2000">2 km</option></select> of you</label>
+      <button class="tbtn" id="nearMine" hidden>◎ Back to my location</button>
     </div>
     <div id="nearby" class="nearby-only"></div>
   </aside>
@@ -607,7 +662,7 @@ function updateMe(p) {
   $('meBtn').classList.add('on');
   if (me.flyOnFix) { me.flyOnFix = false; flyToVisible(ll, Math.max(map.getZoom(), 15)); }
   if (mode === 'route') updateMyStop();
-  if (mode === 'nearby' && (!near.center || map.distance(near.center, ll) > 400)) startNearby();
+  if (mode === 'nearby' && near.anchor !== 'area' && (!near.center || map.distance(near.center, ll) > 400)) startNearby();
   if (!me.dot) {
     me.ring = L.circle(ll, { radius: acc, color: '#4285f4', weight: 1, opacity: .4, fillColor: '#4285f4', fillOpacity: .12, interactive: false }).addTo(map);
     me.dot = L.marker(ll, { icon: meIcon, zIndexOffset: 2000, interactive: false }).addTo(map);
@@ -1408,13 +1463,14 @@ function setMode(m) {
   for (const [id, x] of [['tabTrip', 'trip'], ['tabRoute', 'route'], ['tabNearby', 'nearby']]) $(id).classList.toggle('on', m === x);
   // leave the old tab: close its socket and clear its layers
   if (prev === 'trip') { stopTripLive(); map.removeLayer(layers.pins); setMetroView(null); }
-  if (prev === 'route') stopTrack();
-  if (prev === 'nearby') stopNearby();
+  if (prev === 'route') { stopTrack(); layers.tt.clearLayers(); }
+  if (prev === 'nearby') { stopNearby(); updateAreaBtn(); }
   history.replaceState(null, '', location.pathname);
   if (m === 'trip') { layers.pins.addTo(map); if (state.from && state.to) plan(); else setStatus('Set a destination to begin'); }
   if (m === 'route') {
     if (track.route) openRoute(track.route.routeId);
     else { setStatus('Search a route number to track it'); renderTrack(); }
+    if (tt.on) setTTMode(tt.mode);
   }
   if (m === 'nearby') startNearby();
   setSheet(sheet.mode);
@@ -1470,6 +1526,7 @@ async function openRoute(id) {
     track.sock = liveSocket(track.refs, onTrackData, onTrackBatch);
     renderTrack();
     loadTrackGroup(r);
+    if (tt.on && tt.mode === 'route') ttForRoute(r);
     // the other direction usually has the same name with the ends swapped
     routeSearch(r.name).then(list => {
       const rev = list.find(x => x.name === r.name && x.routeId !== id && x.from === r.to && x.to === r.from);
@@ -1858,8 +1915,11 @@ function drawMetro() {
 // --- nearby: every live bus within a radius of you ---
 // Tapping something opens it in place on a back stack (near.stack): a bus (its route + next stops), a stop (everything
 // arriving), a metro station (scheduled departures) or a metro train (scheduled timeline). Back pops one level.
+// Two anchors: around you (GPS, a radius circle) or "Search this area" (the map's centre; the buses on screen, up to
+// AREA_MAX, nearest the centre first). Browsing an area doesn't follow GPS until "Back to my location".
 const near = { sock: null, refs: new Set(), routes: new Map(), extra: new Map(), vehicles: new Map(), etas: new Map(), markers: new Map(), center: null, circle: null,
-  live: false, stack: [], details: new Map(), cache: null, stopCache: new Map() };
+  live: false, stack: [], details: new Map(), cache: [], stopCache: new Map(), anchor: 'me' };
+const AREA_MAX = 50;
 layers.near = L.layerGroup().addTo(map);
 layers.nearSel = L.layerGroup().addTo(map);
 layers.metro = L.layerGroup().addTo(map);
@@ -1876,37 +1936,42 @@ function stopNearby() {
   near.markers.clear(); near.vehicles.clear(); near.etas.clear(); near.refs.clear(); near.extra.clear();
   Object.assign(near, { routes: new Map(), center: null, circle: null, live: false, stack: [] });
 }
-async function startNearby() {
+async function startNearby(at) {
   stopNearby();
+  near.anchor = at ? 'area' : 'me';
+  $('radiusLbl').hidden = !!at; $('nearMine').hidden = !at;
   metroData().then(m => { metro = m; if (mode === 'nearby') { drawMetro(); renderNearby(); } }).catch(() => {});
   metroRidership().then(s => { if (s) { near.ride = s; if (mode === 'nearby') renderNearby(); } });
-  if (!me.pos) {
-    if (me.denied) setStatus('Location is off. Allow it to see buses around you.');
+  if (!at && !me.pos) {
+    if (me.denied) setStatus('Location is off. Allow it to see buses around you, or move the map and tap “Search this area”.');
     else { setStatus('Finding your location…', 'loading'); startWatch(); }
+    updateAreaBtn();
     return renderNearby();
   }
-  const c = near.center = me.pos;
-  near.circle = L.circle(c, { radius: radius(), color: '#60a5fa', weight: 1, opacity: .6, fillColor: '#60a5fa', fillOpacity: .06, interactive: false }).addTo(layers.near);
-  setSheet('half');
-  map.fitBounds(near.circle.getBounds(), nearPad());
-  setStatus('Finding buses around you…', 'loading');
+  const c = near.center = at || me.pos;
+  if (!at) {
+    near.circle = L.circle(c, { radius: radius(), color: '#60a5fa', weight: 1, opacity: .6, fillColor: '#60a5fa', fillOpacity: .06, interactive: false }).addTo(layers.near);
+    map.fitBounds(near.circle.getBounds(), nearPad());
+  }
+  setSheet('half'); updateAreaBtn();
+  setStatus(at ? 'Finding buses in this area…' : 'Finding buses around you…', 'loading');
   renderNearby();
   try {
-    // coming back to the tab reuses the last lookup if you haven't moved much
-    const k = near.cache, fresh = k && Date.now() - k.t < 5 * 60e3 && map.distance(k.center, c) < 400;
-    const list = fresh ? k.list : await (await fetch(`/api/nearby?lat=${c[0]}&lon=${c[1]}`)).json();
+    // the last few lookups are reused for 5 min (coming back to the tab, or to an area you searched)
+    const hit = near.cache.find(k => Date.now() - k.t < 5 * 60e3 && map.distance(k.center, c) < 400);
+    const list = hit ? hit.list : await (await fetch(`/api/nearby?lat=${c[0]}&lon=${c[1]}`)).json();
     if (list.error) throw new Error(list.error);
-    if (!fresh) near.cache = { center: c, list, t: Date.now() };
+    if (!hit) near.cache = [{ center: c, list, t: Date.now() }, ...near.cache].slice(0, 6);
     if (mode !== 'nearby' || near.center !== c) return;
     list.forEach((r, i) => r.color = COLORS[i % COLORS.length]);
     near.routes = new Map(list.map(r => [r.routeId, r]));
     for (const st of new Map(list.map(r => [r.stop.id, r.stop])).values())
       L.circleMarker([st.lat, st.lon], { radius: 5, color: '#fff', weight: 1.5, fillColor: '#0b0d10', fillOpacity: 1 })
         .bindTooltip(st.name).on('click', () => openStop(st)).addTo(layers.near);
-    if (!list.length) { near.live = true; setStatus('No bus routes found near you'); return renderNearby(); }
+    if (!list.length) { near.live = true; setStatus(at ? 'No bus routes found in this area' : 'No bus routes found near you'); return renderNearby(); }
     near.sock = liveSocket(near.refs, onNearData, onNearBatch);
     syncNearRefs();
-  } catch (e) { setStatus('Couldn\'t find buses near you: ' + e.message); }
+  } catch (e) { setStatus(`Couldn't find buses ${at ? 'in this area' : 'near you'}: ` + e.message); }
 }
 function onNearData(parts, key, d) {
   if (parts[0] === 'routes' && d._latitude != null)
@@ -1922,13 +1987,17 @@ function onNearBatch(fromMessage) {
 setInterval(() => { if (mode === 'nearby' && metro) renderNearby(); }, 30000); // metro countdowns tick without socket traffic
 const nearId = v => v.routeId + '|' + v.key;
 const nearEta = (stopId, v) => near.etas.get(`${stopId}|${v.routeId}|${v.key}`);
+const inArea = (v, slack = 0.1) => near.anchor === 'area' ? map.getBounds().pad(slack).contains([v.lat, v.lon]) : map.distance(near.center, [v.lat, v.lon]) <= radius() * (1 + slack);
 function nearBuses() {
   if (!near.center) return [];
-  const R = radius(), selId = nearTop()?.type === 'bus' ? nearTop().id : null;
-  return [...near.vehicles.values()]
+  const selId = nearTop()?.type === 'bus' ? nearTop().id : null;
+  const list = [...near.vehicles.values()]
     .map(v => { const r = routeInfo(v.routeId); return { ...v, r, d: map.distance(near.center, [v.lat, v.lon]), eta: r && nearEta(r.stop.id, v) }; })
-    .filter(v => v.r && ((near.routes.has(v.routeId) && v.d <= R) || nearId(v) === selId)) // the selected bus stays even outside the circle
+    .filter(v => v.r && ((near.routes.has(v.routeId) && inArea(v, 0)) || nearId(v) === selId)) // the selected bus stays even outside
     .sort((a, b) => a.d - b.d);
+  if (near.anchor !== 'area' || list.length <= AREA_MAX) return list;
+  const out = list.slice(0, AREA_MAX), sel = selId && list.find(v => nearId(v) === selId);
+  return sel && !out.includes(sel) ? [...out, sel] : out;
 }
 function drawNearBuses() {
   const shown = new Set(), selId = nearTop()?.type === 'bus' ? nearTop().id : null;
@@ -1953,8 +2022,8 @@ function drawNearBuses() {
 function syncNearRefs() {
   const want = new Set();
   // positions for every nearby route; the per-stop ETA stream only for routes that have a bus actually near you
-  const R = radius() * 1.4, live = new Set();
-  if (near.center) for (const v of near.vehicles.values()) if (near.routes.has(v.routeId) && map.distance(near.center, [v.lat, v.lon]) <= R) live.add(v.routeId);
+  const live = new Set();
+  if (near.center) for (const v of near.vehicles.values()) if (near.routes.has(v.routeId) && inArea(v, 0.4)) live.add(v.routeId);
   for (const r of near.routes.values()) { want.add('routes:' + r.routeId); if (live.has(r.routeId)) want.add(`etas:${r.stop.id}:${r.routeId}`); }
   for (const sel of near.stack) {
     if (sel.type === 'stop') for (const r of sel.routes || []) want.add('routes:' + r.routeId).add(`etas:${r.stop.id}:${r.routeId}`);
@@ -2045,7 +2114,7 @@ function renderNearby() {
   if (mode !== 'nearby') return;
   const el = $('nearby'), sel = nearTop();
   if (!near.center && !sel) {
-    el.innerHTML = `<div class="empty">${me.denied ? 'Location access is off.<br>Allow it in your browser to see buses around you.' : 'Finding your location…'}</div>`;
+    el.innerHTML = `<div class="empty">${me.denied ? 'Location access is off.<br>Allow it in your browser to see buses around you,<br>or move the map and tap <b>Search this area</b>.' : 'Finding your location…'}</div>`;
     return;
   }
   const list = nearBuses(), R = radius();
@@ -2055,18 +2124,20 @@ function renderNearby() {
   else if (sel?.type === 'station') el.innerHTML = renderStationSel(sel, back);
   else if (sel?.type === 'train') el.innerHTML = renderTrainSel(sel, back);
   else el.innerHTML = renderMetroNear() + (list.length
-    ? `<div class="thead">Buses · nearest first · tap one to see its route</div>` + list.map(v => {
+    ? `<div class="thead">${near.anchor === 'area' ? `Buses on screen · nearest the centre first${list.length >= AREA_MAX ? ` · first ${AREA_MAX}` : ''}` : 'Buses · nearest first'} · tap one to see its route</div>` + list.map(v => {
         const stop = v.r.stop.name;
         const at = v.eta >= 0 ? (v.eta < 60 ? `arriving at ${stop}` : `at ${stop} in <b>${fmtEta(v.eta)}</b>`) : v.eta === -1 ? `passed ${stop}` : '';
         return `<div class="tbus" data-route="${v.routeId}" data-key="${v.key}"><div><span class="badge" style="--rc:${v.r.color}">${v.r.name}</span> <span class="nb-to">to ${v.r.towards}${serviceText(v.r.tags)}</span>
           <small>${v.vNo || 'Bus'}${v.halted ? ' · halted' : ''}${at ? ' · ' + at : ''}</small></div><span>${fmtDist(v.d)}</span></div>`;
       }).join('')
-    : `<div class="empty">${near.live ? `No live buses within ${fmtDist(R)} right now.${R < 2000 ? '<br>Try a bigger radius.' : ''}` : 'Looking for buses around you…'}</div>`);
-  if (near.live && !sel) setStatus(`<b style="color:var(--text)">${list.length}</b> buses within <b style="color:var(--text)">${fmtDist(R)}</b> of you · live`, 'live');
+    : `<div class="empty">${near.anchor === 'area' ? (near.live ? 'No live buses on screen right now.<br>Zoom out, or search another area.' : 'Looking for buses in this area…')
+        : near.live ? `No live buses within ${fmtDist(R)} right now.${R < 2000 ? '<br>Try a bigger radius.' : ''}` : 'Looking for buses around you…'}</div>`);
+  if (near.live && !sel) setStatus(near.anchor === 'area' ? `<b style="color:var(--text)">${list.length}</b> buses in this area · live`
+    : `<b style="color:var(--text)">${list.length}</b> buses within <b style="color:var(--text)">${fmtDist(R)}</b> of you · live`, 'live');
 }
 function renderMetroNear() {
   if (!metro || !near.center) return '';
-  return `<div class="thead">Metro near you <span class="sched">scheduled · trains moving live</span></div>`
+  return `<div class="thead">Metro ${near.anchor === 'area' ? 'in this area' : 'near you'} <span class="sched">scheduled · trains moving live</span></div>`
     + (near.ride ? `<div class="ride" title="BMRCL daily ridership (open data, updated every ~24h)">${esc(near.ride)}</div>` : '')
     + nearestStations(near.center).map(s => {
     const next = s.on.flatMap(o => [0, 1].map(dir => ({ o, dir, dep: departures(o.line, dir, o.i, 1)[0] }))).filter(x => x.dep);
@@ -2181,8 +2252,32 @@ $('radius').onchange = () => {
   if (near.circle) { near.circle.setRadius(radius()); if (!nearTop()) map.fitBounds(near.circle.getBounds(), nearPad()); }
   drawNearBuses(); renderNearby();
 };
+// Google Maps style "Search this area": shown in Nearby once the map is moved away from the area being shown
+const areaBtn = document.createElement('button');
+areaBtn.id = 'searchArea';
+areaBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Search this area';
+L.DomEvent.disableClickPropagation(areaBtn);
+map.getContainer().appendChild(areaBtn);
+function updateAreaBtn() {
+  let show = false;
+  if (mode === 'nearby') {
+    const c = map.getCenter(), b = map.getBounds();
+    // moved by more than a quarter of the view (and at least 500 m) from what's shown, or nothing shown yet
+    show = !near.center || map.distance(c, near.center) > Math.max(500, map.distance(b.getNorthWest(), b.getSouthEast()) / 4);
+  }
+  areaBtn.classList.toggle('on', show);
+}
+areaBtn.onclick = () => { const c = map.getCenter(); startNearby([c.lat, c.lng]); };
+$('nearMine').onclick = () => startNearby();
+let areaMoveT;
+map.on('moveend', () => {
+  if (mode !== 'nearby') return;
+  updateAreaBtn();
+  // browsing an area: the buses on screen change as you pan and zoom
+  if (near.anchor === 'area') { clearTimeout(areaMoveT); areaMoveT = setTimeout(() => { drawNearBuses(); syncNearRefs(); renderNearby(); }, 250); }
+});
 // "Open in Track route": that route in the Track tab, with this bus already followed
-function trackBus(routeId, key) { track.route = { routeId }; track.pendingFollow = key; setMode('route'); }
+function trackBus(routeId, key) { if (tt.on) setTT(false); track.route = { routeId }; track.pendingFollow = key; setMode('route'); }
 
 // "Leave now" (live) / "Leave at" / "Arrive by" (planned from timetables)
 const toLocalInput = d => new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
@@ -2261,6 +2356,197 @@ addEventListener('resize', () => setSheet(sheet.mode));
 document.fonts?.ready.then(() => setSheet(sheet.mode));
 if (matchMedia('(pointer: coarse)').matches) $('hint').textContent = 'Tip: tap the map to set the destination, long-press to set the start.';
 setSheet('peek');
+
+// --- timetable: BMTC's published schedule (/api/timetable, built by scripts/bmtc_timetable.py). Scheduled, not live ---
+// Track route has a Live buses / Timetable switch. Modes: by route (follows the route open in Track route; times at the
+// stop nearest you), From → To (every direct bus between two places all day, and one-change journeys) and Night buses.
+const tt = { on: false, mode: 'route', forRoute: null, fam: [], svc: null, status: '', stop: 0, from: null, to: null, ab: null, night: null, open: new Set(), version: '' };
+layers.tt = L.layerGroup().addTo(map);
+const ttClock = m => fmtClock(m * 60);
+const ttNow = () => Math.floor(istNowSecs().secs / 60);
+const ttDay = m => ((m % 1440) - 180 + 1440) % 1440; // service-day order: 03:00 first, past midnight last
+const ttIn = m => m < 1 ? 'now' : m < 60 ? `in ${m} min` : `in ${Math.floor(m / 60)} h ${m % 60} min`;
+const ttUntil = m => ((m % 1440) - ttNow() + 1440) % 1440;
+const ttBadge = n => `<span class="badge tt-badge" style="--rc:${/^KIA/i.test(n) ? SEG_C.air : /^VV?-/i.test(n) ? SEG_C.ac : /^MF-/i.test(n) ? SEG_C.feeder : SEG_C.ord}">${esc(n)}</span>`;
+const ttVersion = () => tt.version ? new Date(`${tt.version.slice(0, 4)}-${tt.version.slice(4, 6)}-${tt.version.slice(6, 8)}`).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '';
+const ttFoot = extra => `<div class="tt-foot">${extra ? extra + ' ' : ''}Scheduled times from BMTC's published timetable (unofficial GTFS by <a href="https://github.com/Vonter/bmtc-gtfs" target="_blank" rel="noopener">Vonter</a>, ODbL${tt.version ? ', ' + ttVersion() : ''}). Buses can run early, late or not at all, and late-night city trips are often listed but not run. Switch to <b>Live buses</b> to see where they are.</div>`;
+// the upcoming times (service-day aware: after the day's last bus, tomorrow's first ones)
+function ttUpcoming(times, n = 3) {
+  const now = ttDay(ttNow()), sorted = [...times].sort((a, b) => ttDay(a) - ttDay(b));
+  return [...sorted.filter(m => ttDay(m) >= now), ...sorted.filter(m => ttDay(m) < now)].slice(0, n);
+}
+
+function setTT(on) {
+  tt.on = on;
+  document.body.classList.toggle('tt', on);
+  for (const b of document.querySelectorAll('#ttSwitch button')) b.classList.toggle('on', (b.dataset.v === 'tt') === on);
+  if (!on) { layers.tt.clearLayers(); document.body.classList.remove('tt-ab', 'tt-night'); return renderTrack(); }
+  setTTMode(tt.mode);
+}
+function setTTMode(m) {
+  tt.mode = m;
+  document.body.classList.toggle('tt-ab', tt.on && m === 'ab'); document.body.classList.toggle('tt-night', tt.on && m === 'night');
+  for (const b of document.querySelectorAll('#ttMode button')) b.classList.toggle('on', b.dataset.m === m);
+  layers.tt.clearLayers();
+  if (m === 'route') return track.route?.stops && tt.forRoute !== track.route ? ttForRoute(track.route) : renderTT();
+  if (m === 'night') return ttLoadNight();
+  // From → To starts from your Plan trip places (or your location)
+  tt.from ??= state.from || (me.pos ? { lat: me.pos[0], lon: me.pos[1], label: 'My location' } : null);
+  tt.to ??= state.to;
+  $('ttFrom').value = tt.from?.label || ''; $('ttTo').value = tt.to?.label || '';
+  ttLoadAB();
+}
+$('ttSwitch').onclick = e => { const b = e.target.closest('button'); if (b) setTT(b.dataset.v === 'tt'); };
+$('ttMode').onclick = e => { const b = e.target.closest('button'); if (b) setTTMode(b.dataset.m); };
+setupSearch($('ttFrom'), $('ttFromSugg'), photon, it => { tt.from = { lat: it.lat, lon: it.lon, label: it.name }; ttLoadAB(); });
+setupSearch($('ttTo'), $('ttToSugg'), photon, it => { tt.to = { lat: it.lat, lon: it.lon, label: it.name }; ttLoadAB(); });
+
+function renderTT() {
+  if (mode !== 'route' || !tt.on) return;
+  $('tt').innerHTML = tt.mode === 'ab' ? ttABHtml() : tt.mode === 'night' ? ttNightHtml() : ttRouteHtml();
+}
+setInterval(() => { if (mode === 'route' && tt.on && document.activeElement?.id !== 'ttStop') renderTT(); }, 30000); // countdowns
+
+// ---- by route ----
+// the open Track route's timetable: same route name, the direction whose ends are nearest this route's ends
+async function ttForRoute(r) {
+  Object.assign(tt, { forRoute: r, fam: [], svc: null, status: 'loading' }); renderTT();
+  const j = await getJ(`/api/timetable?q=${encodeURIComponent(r.name)}`).catch(() => ({ services: [] }));
+  if (tt.forRoute !== r) return;
+  tt.fam = j.services || []; tt.version = j.version || tt.version;
+  const a = r.stops[0], b = r.stops.at(-1), d = (ll, s) => mdist({ lat: ll[0], lon: ll[1] }, s);
+  const same = tt.fam.filter(s => s.name === r.name);
+  const pick = (same.length ? same : tt.fam).map(s => ({ s, sc: d(s.fromLL, a) + d(s.toLL, b) })).sort((x, y) => x.sc - y.sc)[0]?.s;
+  if (!pick) { tt.status = 'none'; return renderTT(); }
+  ttLoad(pick.key);
+}
+async function ttLoad(key) {
+  tt.status = 'loading'; renderTT();
+  const j = await getJ(`/api/timetable?key=${encodeURIComponent(key)}`).catch(() => null);
+  if (!j) { tt.status = 'none'; return renderTT(); }
+  // times at the stop nearest you (within 1.5 km), else the first stop
+  let best = 0, bd = 1500;
+  if (me.pos) j.stops.forEach((s, k) => { const dd = mdist({ lat: me.pos[0], lon: me.pos[1] }, { lat: s[1], lon: s[2] }); if (dd < bd) { bd = dd; best = k; } });
+  Object.assign(tt, { svc: j, stop: best, status: 'ok', version: j.version || tt.version });
+  renderTT();
+}
+function ttRouteHtml() {
+  const r = track.route, s = tt.svc;
+  if (!r?.stops) return `<div class="empty">Search a route number above to see its timetable:<br>first and last bus, how often it comes, and every time at your stop.</div>`;
+  if (tt.status === 'loading') return '<div class="empty">Loading the timetable…</div>';
+  if (tt.status === 'none' || !s) return `<div class="empty">No published timetable for <b>${esc(r.name)}</b>.<br>Switch to <b>Live buses</b> to see buses running now.</div>`;
+  const i = Math.min(tt.stop, s.stops.length - 1), times = s.trips.map(row => row[i]).filter(x => x != null).map(x => x % 1440);
+  const ts = [...times].sort((a, b) => ttDay(a) - ttDay(b)), now = ttNow(), next = ttUpcoming(times);
+  // how often: the middle gap between buses within an hour either side of now
+  const near = ts.filter(m => Math.min(Math.abs(m - now), 1440 - Math.abs(m - now)) <= 60).sort((a, b) => ttDay(a) - ttDay(b));
+  const gaps = near.slice(1).map((m, k) => ttDay(m) - ttDay(near[k])).sort((a, b) => a - b), every = gaps.length ? gaps[gaps.length >> 1] : null;
+  const other = tt.fam.find(x => x.name === s.name && x.dir !== s.dir);
+  const hours = new Map();
+  for (const m of ts) { const h = Math.floor(m / 60); if (!hours.has(h)) hours.set(h, []); hours.get(h).push(m); }
+  const nowDay = ttDay(now), nextM = next[0];
+  const grid = [...hours].map(([h, list]) => {
+    const past = ttDay(h * 60 + 59) < nowDay, cur = Math.floor(now / 60) === h;
+    return `<div class="tt-hr${past ? ' past' : ''}${cur ? ' now' : ''}"><div class="h">${String(h).padStart(2, '0')}</div><div class="m">${list.map(m =>
+      `<span class="${m === nextM ? 'tt-m-next' : ttDay(m) < nowDay ? 'tt-m-past' : ''}">${String(m % 60).padStart(2, '0')}</span>`).join('')}</div></div>`;
+  }).join('');
+  const famTrips = tt.fam.reduce((n, x) => n + x.trips, 0), variants = tt.fam.filter(x => x.key !== s.key);
+  return `<div class="tcard"><div class="rtop">${ttBadge(s.name)}<span class="tt-tag">scheduled</span>${other ? `<button class="tbtn" data-ttkey="${esc(other.key)}">⇄ Other direction</button>` : ''}</div>
+      <div class="tt-dir"><b>${esc(s.from)}</b> → <b>${esc(s.to)}</b> · ${s.stops.length} stops</div>
+      <div class="tt-stats">
+        <div class="tt-stat"><div class="v">${ts.length ? ttClock(ts[0]) : '—'}</div><div class="k">first bus</div></div>
+        <div class="tt-stat"><div class="v">${ts.length ? ttClock(ts.at(-1)) : '—'}</div><div class="k">last bus</div></div>
+        <div class="tt-stat"><div class="v">${every ? `~${every} min` : ts.length}</div><div class="k">${every ? 'how often now' : 'buses a day'}</div></div>
+      </div>
+      <div class="tt-stop">Times at <select id="ttStop">${s.stops.map((st, k) => `<option value="${k}"${k === i ? ' selected' : ''}>${esc(st[0])}${k === 0 ? ' (start)' : ''}</option>`).join('')}</select></div></div>
+    ${s.trips.length < 6 && famTrips < 30 ? `<div class="tt-warn">Only ${s.trips.length} trip${s.trips.length === 1 ? '' : 's'} a day listed. BMTC's published timetable is incomplete for some routes, so more buses may run. Check <b>Live buses</b>.</div>` : ''}
+    <div class="thead">Next buses at ${esc(s.stops[i][0])}</div>
+    <div class="tt-next">${next.length ? next.map(m => `<div class="tt-nx"><div class="t">${ttClock(m)}</div><div class="in">${ttIn(ttUntil(m))}</div></div>`).join('') : '<div class="tt-nx"><div class="in">No times listed</div></div>'}</div>
+    <div class="thead">All day · ${ts.length} buses</div>
+    <div class="tt-cap">Each row is an hour; the numbers are minutes past it. <b>07</b> · <b>05 25</b> means buses at 07:05 and 07:25. No row means no bus that hour.</div>
+    <div class="tt-grid">${grid}</div>
+    ${variants.length ? `<div class="thead">Other ${esc(s.name.split(' ')[0])} services</div>` + variants.map(v =>
+      `<div class="tt-row" data-ttkey="${esc(v.key)}"><div class="l"><span>${ttBadge(v.name)}</span><span>${v.trips} a day · ${ttClock(v.first % 1440)}–${ttClock(v.last % 1440)}</span></div><small>${esc(v.from)} → ${esc(v.to)}</small></div>`).join('') : ''}
+    ${ttFoot()}`;
+}
+
+// ---- From → To ----
+async function ttLoadAB() {
+  const f = tt.from, t = tt.to;
+  layers.tt.clearLayers();
+  if (!f || !t) { tt.ab = null; return renderTT(); }
+  for (const [p, c] of [[f, '#4285f4'], [t, '#ea4335']])
+    L.circleMarker([p.lat, p.lon], { radius: 7, color: '#fff', weight: 2, fillColor: c, fillOpacity: 1 }).bindTooltip(esc(p.label || '')).addTo(layers.tt);
+  map.fitBounds(L.latLngBounds([[f.lat, f.lon], [t.lat, t.lon]]).pad(.25), { paddingBottomRight: [0, mq.matches ? sheet.h : 0] });
+  tt.ab = 'loading'; renderTT();
+  const j = await getJ(`/api/timetable?flat=${f.lat}&flon=${f.lon}&tlat=${t.lat}&tlon=${t.lon}`).catch(e => ({ error: e.message || String(e) }));
+  if (tt.from !== f || tt.to !== t) return;
+  tt.ab = j; tt.version = j.version || tt.version; tt.open.clear(); renderTT();
+}
+function ttABHtml() {
+  const f = tt.from, t = tt.to, j = tt.ab;
+  if (!f || !t) return `<div class="empty">Pick where you're going${f ? '' : ' and where from'} to see every bus between the two places, all day.</div>`;
+  if (j === 'loading') return '<div class="empty">Finding every bus between these places…</div>';
+  if (!j || j.error) return `<div class="empty">Couldn't load the timetable${j?.error ? ': ' + esc(j.error) : ''}.</div>`;
+  const all = j.direct.flatMap(d => d.times.map(([dep, ride]) => ({ dep: dep % 1440, ride, d })));
+  const byTime = new Map(all.map(x => [x.dep, x])), next = ttUpcoming([...new Set(all.map(x => x.dep))]).map(m => byTime.get(m));
+  const sorted = [...all].sort((a, b) => ttDay(a.dep) - ttDay(b.dep)), n = all.length;
+  const nextC = ttUpcoming(j.change.map(c => c.leave % 1440)).map(m => j.change.find(c => c.leave % 1440 === m));
+  const jd = x => `<div class="tt-jr"><div class="top"><span class="t">${ttClock(x.dep)}</span><span class="in">${ttIn(ttUntil(x.dep))}</span><span class="arr">arrive <b>${ttClock(x.dep + x.ride)}</b> · ${x.ride} min</span></div>
+      <div class="rides">${ttBadge(x.d.route)}</div>
+      <div class="how">Walk ${x.d.walkTo} min to <b>${esc(x.d.board.name)}</b> · get off at <b>${esc(x.d.alight.name)}</b>${x.d.walkFrom > 1 ? `, walk ${x.d.walkFrom} min` : ''}</div></div>`;
+  const jc = c => `<div class="tt-jr"><div class="top"><span class="t">${ttClock(c.leave)}</span><span class="in">${ttIn(ttUntil(c.leave))}</span><span class="arr">arrive <b>${ttClock(c.arrive)}</b> · ${c.arrive - c.leave} min</span></div>
+      <div class="rides">${ttBadge(c.r1)}<span class="chg">→ change at ${esc(c.change)} →</span>${ttBadge(c.r2)}</div>
+      <div class="how">From <b>${esc(c.board.name)}</b> (${c.walkTo} min walk) · reach <b>${esc(c.change)}</b> at ${ttClock(c.atX)} · ${esc(c.r2)} leaves at <b>${ttClock(c.depX)}</b> · get off at <b>${esc(c.alight.name)}</b></div></div>`;
+  let html = `<div class="tcard"><div class="rtop"><b style="font-size:14px">${esc(f.label || 'From')} → ${esc(t.label || 'To')}</b><span class="tt-tag">scheduled</span></div>
+    <div class="tt-stats">
+      <div class="tt-stat"><div class="v">${n}</div><div class="k">direct buses a day</div></div>
+      <div class="tt-stat"><div class="v">${n ? ttClock(sorted[0].dep) : '—'}</div><div class="k">first direct</div></div>
+      <div class="tt-stat"><div class="v">${n ? ttClock(sorted.at(-1).dep) : '—'}</div><div class="k">last direct</div></div></div></div>`;
+  if (n) {
+    html += `<div class="thead">Next direct buses</div>` + next.map(jd).join('');
+    if (n < 30 && j.change.length) html += `<div class="tt-warn">Only ${n} direct bus${n === 1 ? '' : 'es'} a day. A journey with one change may get you there sooner.</div>`;
+  } else html += `<div class="tt-warn">${j.change.length ? 'No direct bus between these places. These journeys need one change.' : 'No bus between these places in the timetable, even with one change. Try Plan trip, which includes the metro.'}</div>`;
+  if (j.change.length) html += `<div class="thead">With one change · ${j.change.length} a day</div>` + nextC.map(jc).join('');
+  if (n) html += `<div class="thead">Direct routes · tap for all times</div>` + j.direct.map((d, k) => {
+    const ts = d.times.map(x => x[0] % 1440).sort((a, b) => ttDay(a) - ttDay(b)), ride = d.times.map(x => x[1]).sort((a, b) => a - b)[d.times.length >> 1], nx = ttUpcoming(ts, 1)[0];
+    return `<div class="tt-row${tt.open.has(k) ? ' open' : ''}" data-ttopen="${k}"><div class="l"><span>${ttBadge(d.route)}</span><span>${ts.length} a day · ${ttClock(ts[0])}–${ttClock(ts.at(-1))}</span></div>
+      <small>${esc(d.board.name)} → ${esc(d.alight.name)} · ${d.walkTo} min walk to board · ride ~${ride} min</small>
+      <div class="tt-times">${ts.map(m => `<span class="${m === nx ? 'tt-m-next' : ttDay(m) < ttDay(ttNow()) ? 'tt-m-past' : ''}">${ttClock(m)}</span>`).join('')}</div></div>`;
+  }).join('');
+  return html + ttFoot('Direct = one bus that stops within about 10 min walk of each place. One change = a bus to the change stop, then the first bus onward at least 3 min later.');
+}
+
+// ---- night buses ----
+async function ttLoadNight() {
+  if (!tt.night) {
+    renderTT();
+    tt.night = await getJ('/api/timetable?night=1').catch(() => null);
+    tt.version = tt.night?.version || tt.version;
+  }
+  renderTT();
+}
+function ttNightHtml() {
+  if (!tt.night) return '<div class="empty">Loading night buses…</div>';
+  const rows = tt.night.routes, group = (title, kind) => {
+    const list = rows.filter(r => r.kind === kind);
+    return list.length ? `<div class="thead">${title} · ${list.reduce((s, r) => s + r.times.length, 0)} trips</div>` + list.map(r =>
+      `<div class="tt-row" style="cursor:default"><div class="l"><span>${ttBadge(r.route)}</span><span>${r.times.length}</span></div><small>${esc(r.from)} → ${esc(r.to)}</small>
+        <div class="tt-times show">${r.times.map(m => `<span>${ttClock(m)}</span>`).join('')}</div></div>`).join('') : '';
+  };
+  return `<div class="tcard"><div class="rtop"><b style="font-size:14px">Buses at night · 23:00 – 04:00</b><span class="tt-tag">scheduled</span></div>
+      <div class="tt-dir" style="color:var(--muted)">The airport buses (Vayu Vajra) run all night. City routes mostly stop by about 23:30 and start again around 04:00; their late trips are listed but often don't run.</div></div>`
+    + group('Airport buses · all night', 'airport') + group('City buses · listed, often not run late', 'city') + group('Depot runs · may not take passengers', 'depot')
+    + ttFoot('Trips that start between 23:00 and 04:00.');
+}
+
+// one delegated handler: the panel re-renders every 30 s
+$('tt').addEventListener('click', e => {
+  const k = e.target.closest('[data-ttkey]');
+  if (k) return ttLoad(k.dataset.ttkey);
+  const o = e.target.closest('[data-ttopen]');
+  if (o) { const i = +o.dataset.ttopen; tt.open.has(i) ? tt.open.delete(i) : tt.open.add(i); renderTT(); }
+});
+$('tt').addEventListener('change', e => { if (e.target.id === 'ttStop') { tt.stop = +e.target.value; renderTT(); } });
 
 const hashRoute = location.hash.match(/route=([\w-]+)/)?.[1];
 startWatch(); // show where you are from the start, in every tab
@@ -2515,7 +2801,7 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) (() => {
   wrap('openRoute', f => id => { log('track', `open route ${id}`); return f(id); });
   wrap('trackBus', f => (routeId, key) => { log('track', `follow bus ${key} on ${routeId}`); return f(routeId, key); });
   wrap('stopTrack', f => () => { log('track', 'stop'); return f(); });
-  wrap('startNearby', f => () => { log('nearby', 'start', { me: state.from }); return f(); });
+  wrap('startNearby', f => at => { log('nearby', at ? 'search this area' : 'start (around you)', { at, me: me.pos }); return f(at); });
   wrap('stopNearby', f => () => { log('nearby', 'stop'); return f(); });
   wrap('addAlert', f => a => { log('alert', `add: ${a.label}`, a); return f(a); });
   wrap('fireAlert', f => (a, text) => { log('alert', `fire: ${text}`); return f(a, text); });
