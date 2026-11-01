@@ -420,7 +420,7 @@ const glLayer = L.maplibreGL({
   attribution: '&copy; OpenFreeMap &copy; OpenStreetMap · Metro timetable: BMRCL via Vonter/bmrcl-gtfs (ODbL)',
 }).addTo(map);
 
-const state = { from: null, to: null, when: { mode: 'now' }, options: [], sel: null, branch: {}, es: null, refs: new Set(), vehicles: new Map(), etas: new Map(), stopLists: new Map(), routeAlias: new Map(), night: false, showIdle: false, liveSince: null };
+const state = { from: null, to: null, when: { mode: 'now' }, options: [], sel: null, branch: {}, es: null, refs: new Set(), vehicles: new Map(), etas: new Map(), stopLists: new Map(), groups: {}, night: false, showIdle: false, liveSince: null };
 const layers = { lines: L.layerGroup().addTo(map), stops: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), pins: L.layerGroup().addTo(map) };
 const busMarkers = new Map();
 
@@ -500,13 +500,13 @@ function fireAlert(a, text) {
   try { if (Notification.permission === 'granted') new Notification('BMTC Live', { body: text }); } catch {}
 }
 function syncAlertSock() {
-  const want = new Set(alerts.list.filter(a => a.kind === 'live').map(a => `etas:${a.stopId}:${a.routeId}`));
+  const want = new Set(alerts.list.filter(a => a.kind === 'live').flatMap(a => (a.routeIds || [a.routeId]).map(id => `etas:${a.stopId}:${id}`)));
   if (!want.size) { if (alerts.sock) { alerts.sock.close(); alerts.sock = null; } alerts.refs.clear(); return; }
   for (const ref of [...alerts.refs]) if (!want.has(ref)) { alerts.refs.delete(ref); alerts.sock?.emit('unsubscribe', JSON.stringify({ ref })); }
   for (const ref of want) if (!alerts.refs.has(ref)) { alerts.refs.add(ref); if (alerts.sock?.connected) alerts.sock.emit('subscribe', JSON.stringify({ ref })); }
   if (!alerts.sock) alerts.sock = liveSocket(alerts.refs, (parts, key, d) => {
     if (parts[0] !== 'etas' || !(d.eta >= 0)) return;
-    for (const a of [...alerts.list]) if (a.kind === 'live' && a.stopId === parts[1] && a.routeId === parts[2] && (!a.key || a.key === key) && d.eta <= a.mins * 60)
+    for (const a of [...alerts.list]) if (a.kind === 'live' && a.stopId === parts[1] && (a.routeIds || [a.routeId]).includes(parts[2]) && (!a.key || a.key === key) && d.eta <= a.mins * 60)
       fireAlert(a, `${a.label}: ${d.vNo || 'bus'} ${fmtEta(d.eta) === 'arriving now' ? 'is arriving now' : 'in ' + fmtEta(d.eta)}`);
   }, () => {}, true);
 }
@@ -697,7 +697,7 @@ const getJ = async u => { const r = await fetch(u); const j = await r.json(); if
 function stopTripLive() {
   if (state.es) { state.es.close(); state.es = null; }
   layers.lines.clearLayers(); layers.stops.clearLayers(); layers.buses.clearLayers(); busMarkers.clear();
-  state.vehicles.clear(); state.etas.clear(); state.refs.clear(); state.routeAlias.clear(); state.liveSince = null;
+  state.vehicles.clear(); state.etas.clear(); state.refs.clear(); state.liveSince = null;
 }
 function setStops(id, stops) { state.stopLists.set(id, { stops, idx: new Map(stops.map((x, k) => [x.id, k])) }); }
 
@@ -838,16 +838,22 @@ function rideSecs(l) {
   if (a != null && b != null && b > a) { let m = 0; for (let k = a; k < b; k++) m += mdist(sl.stops[k], sl.stops[k + 1]); return m / BUS_MPM * 60; }
   return mdist(l.board, l.alight) * 1.4 / BUS_MPM * 60;
 }
+// A bus leg rides any of its group's route IDs: Chalo has several IDs per route (stale duplicates, depot and short-run
+// variants) and puts live buses on any of them. The group is every ID of the same route number that runs from the
+// boarding stop to the drop-off (/api/group), like BMTC's own site groups a route's variants.
+const legIds = l => l.group ? [...l.group] : [l.routeId];
+const onLeg = (l, routeId) => l.group ? l.group.has(routeId) : routeId === l.routeId;
+const routeNo = name => (name || '').split(' ')[0];
 // the first live bus that reaches your stop after you do (30 s grace), and when that same bus reaches your drop-off
 function catchBus(l, readyIn) {
   let best = null;
   for (const v of state.vehicles.values()) {
-    if (v.routeId !== l.routeId) continue;
-    const eb = state.etas.get(`${l.board.id}|${l.routeId}|${v.key}`);
+    if (!onLeg(l, v.routeId)) continue;
+    const eb = state.etas.get(`${l.board.id}|${v.routeId}|${v.key}`);
     if (!(eb >= 0) || eb < readyIn - 30) continue;
-    const ea = state.etas.get(`${l.alight.id}|${l.routeId}|${v.key}`), liveRide = ea > eb;
+    const ea = state.etas.get(`${l.alight.id}|${v.routeId}|${v.key}`), liveRide = ea > eb;
     const arr = liveRide ? ea : eb + rideSecs(l);
-    if (!best || arr < best.arr) best = { key: v.key, vNo: v.vNo, eb, arr, liveRide };
+    if (!best || arr < best.arr) best = { key: v.key, vNo: v.vNo, routeId: v.routeId, eb, arr, liveRide };
   }
   return best;
 }
@@ -927,11 +933,11 @@ function scoreAll() {
 const MISSED_MS = 90e3;
 function trackMissed(o) {
   const s = o.eff, was = o.caught;
-  o.caught = !s.noBus && s.first?.bus ? { key: s.first.bus.key, vNo: s.first.bus.vNo, l: s.first.l } : null;
+  o.caught = !s.noBus && s.first?.bus ? { key: s.first.bus.key, vNo: s.first.bus.vNo, routeId: s.first.bus.routeId, l: s.first.l } : null;
   if (o.caught || !s.noBus || planned()) { o.missed = null; return; }
   if (!o.missed && was) {
     // a numeric ETA means the bus is still reported: it passed (-1) or is now too close to reach. No ETA = data gap.
-    const eb = state.etas.get(`${was.l.board.id}|${was.l.routeId}|${was.key}`);
+    const eb = state.etas.get(`${was.l.board.id}|${was.routeId}|${was.key}`);
     if (typeof eb === 'number') o.missed = { at: Date.now(), vNo: was.vNo, stop: was.l.board.name };
   }
   if (o.missed && Date.now() - o.missed.at > MISSED_MS) { o.missed = null; scheduleTrip(); }
@@ -976,15 +982,23 @@ async function plan() {
     const opts = buildOptions(p.journeys || [], direct, tometro, dSt, from, to);
     // stop lists for buses the planner didn't cover, for ride times and metro forks
     const missing = [...new Set(opts.flatMap(o => o.legs.filter(l => l.t === 'bus' && !state.stopLists.has(l.routeId)).map(l => l.routeId)))].slice(0, 24);
-    await Promise.all(missing.map(async id => setStops(id, (await getJ(`/api/route?id=${encodeURIComponent(id)}`).catch(() => null))?.stops || [])));
+    // every route ID of the same number for each ride (most promising options first; the server takes 30 pairs)
+    const pairs = [...new Set([...opts].sort((a, b) => staticSecs(a.legs) - staticSecs(b.legs))
+      .flatMap(o => o.legs.filter(l => l.t === 'bus').map(l => `${l.board.id}>${l.alight.id}`)))].slice(0, 30);
+    const [groups] = await Promise.all([
+      pairs.length ? getJ(`/api/group?p=${pairs.join(',')}`).catch(() => ({})) : {},
+      ...missing.map(async id => setStops(id, (await getJ(`/api/route?id=${encodeURIComponent(id)}`).catch(() => null))?.stops || [])),
+    ]);
     if (mode !== 'trip' || state.from !== from || state.to !== to) return;
-    state.options = prune(opts);
+    state.groups = groups;
+    for (const o of opts) for (const l of o.legs) if (l.t === 'bus') groupLeg(l);
+    state.options = prune(dedupeOptions(opts));
     for (const pj of (p.partial || [])) {
       const rides = pj.legs.filter(l => l.mode !== 'walk');
       if (!rides.length) continue;
       const kind = rides.filter(l => l.mode === 'bus').length > 1 ? 'transfer' : 'bus';
       let legs = [], at = from;
-      for (const l of rides) if (l.mode === 'bus') { legs.push(walkLeg(at, l.board), busLeg(l)); at = l.alight; }
+      for (const l of rides) if (l.mode === 'bus') { legs.push(walkLeg(at, l.board), groupLeg(busLeg(l))); at = l.alight; }
       state.options.push({ key: 'R:' + pj.key, kind, legs, fare: pj.fare, partial: true, remainingM: pj.remainingM, src: 'partial' });
     }
     computeForks(dSt[0], from, to);
@@ -999,60 +1013,43 @@ async function plan() {
   }
 }
 
+// the leg's group: its own route ID plus every other ID of the same route number that runs board → alight
+function groupLeg(l) {
+  const ids = (state.groups?.[`${l.board.id}>${l.alight.id}`] || []).filter(r => routeNo(r.name) === routeNo(l.name)).map(r => r.routeId);
+  l.group = new Set([l.routeId, ...ids]);
+  return l;
+}
+// two options are the same ride when every leg matches by route number and stops (e.g. a stale duplicate route ID).
+// One-bus trips on the same route number from the same stop catch the same buses: keep the quickest drop-off.
+function dedupeOptions(opts) {
+  const seen = new Set();
+  return [...opts].sort((a, b) => staticSecs(a.legs) - staticSecs(b.legs)).filter(o => {
+    const bus = o.legs.filter(l => l.t === 'bus');
+    const sig = o.kind === 'bus' && bus.length === 1 ? `bus:${routeNo(bus[0].name)}@${bus[0].board.id}`
+      : o.kind + ':' + o.legs.map(l => l.t === 'bus' ? `${routeNo(l.name)}@${l.board.id}>${l.alight.id}` : l.t === 'metro' ? `m${l.from}>${l.to}` : '').join('|');
+    if (seen.has(sig)) return false;
+    seen.add(sig); return true;
+  });
+}
+
 // live subscriptions: every bus leg's positions + ETAs at its boarding and drop-off stops (+ fork stops for the top few)
 function connectTrip() {
   const want = new Set();
   for (const [n, o] of [...state.options].sort((a, b) => rankKey(a) - rankKey(b)).entries()) {
     if (n >= 46) break;
     const legs = [...o.legs, ...(o.fork && n < 10 ? o.fork.legs : [])];
-    for (const l of legs) if (l.t === 'bus') want.add('routes:' + l.routeId).add(`etas:${l.board.id}:${l.routeId}`).add(`etas:${l.alight.id}:${l.routeId}`);
+    for (const l of legs) if (l.t === 'bus') for (const id of legIds(l)) want.add('routes:' + id).add(`etas:${l.board.id}:${id}`).add(`etas:${l.alight.id}:${id}`);
   }
   if (!want.size) { state.liveSince = Date.now() - SETTLE_MS; return; }
   for (const ref of want) state.refs.add(ref);
   const es = state.es = liveSocket(state.refs, (parts, key, d) => {
     if (parts[0] === 'routes' && d._latitude != null) {
-      const routeId = state.routeAlias.get(parts[1]) || parts[1];
-      state.vehicles.set(key, { key, routeId, vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
-    } else if (parts[0] === 'etas') { const routeId = state.routeAlias.get(parts[2]) || parts[2]; state.etas.set(`${parts[1]}|${routeId}|${key}`, d.eta); }
+      state.vehicles.set(key, { key, routeId: parts[1], vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
+    } else if (parts[0] === 'etas') state.etas.set(`${parts[1]}|${parts[2]}|${key}`, d.eta);
   }, () => {
     if (!state.liveSince) {
       state.liveSince = Date.now();
       setTimeout(() => { if (state.es === es) { scoreAll(); renderTrip(); drawTrip(); } }, SETTLE_MS + 300);
-      // after settle, search for siblings of bus routes with 0 vehicles (stale Chalo duplicate IDs)
-      setTimeout(() => {
-        if (state.es !== es) return;
-        const busLegs = new Map();
-        for (const o of state.options) for (const l of o.legs) if (l.t === 'bus') {
-          if (!busLegs.has(l.routeId)) busLegs.set(l.routeId, { name: l.name, legs: new Set() });
-          busLegs.get(l.routeId).legs.add(l);
-        }
-        const dead = [...busLegs.entries()].filter(([rid]) =>
-          ![...state.vehicles.values()].some(v => v.routeId === rid));
-        if (!dead.length) return;
-        const byName = new Map();
-        for (const [rid, info] of dead) {
-          if (!byName.has(info.name)) byName.set(info.name, []);
-          byName.get(info.name).push([rid, info]);
-        }
-        for (const [name, entries] of byName) {
-          routeSearch(name).then(list => {
-            if (state.es !== es) return;
-            for (const [rid, { legs }] of entries) {
-              const orig = list.find(x => x.routeId === rid);
-              if (!orig) continue;
-              // never alias a route other options already use: it would take their buses away from them
-              const sibs = list.filter(x => x.name === name && x.routeId !== rid && x.from === orig.from && x.to === orig.to && !busLegs.has(x.routeId));
-              for (const sib of sibs) {
-                state.routeAlias.set(sib.routeId, rid);
-                for (const l of legs)
-                  for (const ref of [`routes:${sib.routeId}`, `etas:${l.board.id}:${sib.routeId}`, `etas:${l.alight.id}:${sib.routeId}`])
-                    if (!state.refs.has(ref)) { state.refs.add(ref); if (state.es?.connected) state.es.emit('subscribe', JSON.stringify({ ref })); }
-              }
-            }
-            scheduleTrip();
-          }).catch(() => {});
-        }
-      }, SETTLE_MS + 2000);
     }
     scheduleTrip();
   });
@@ -1217,10 +1214,10 @@ $('routes').addEventListener('click', e => {
   const nt = t.closest('[data-notify]');
   if (nt) {
     const o = find(nt), st = o.eff.steps.find(x => x.l.t === 'bus'), l = st.l;
-    return addAlert({ kind: 'live', label: `${l.name} at ${l.board.name}`, stopId: l.board.id, routeId: l.routeId, key: st.bus?.key || null });
+    return addAlert({ kind: 'live', label: `${l.name} at ${l.board.name}`, stopId: l.board.id, routeIds: st.bus ? [st.bus.routeId] : legIds(l), key: st.bus?.key || null });
   }
   const tr = t.closest('[data-track]');
-  if (tr) { const o = find(tr), st = o.eff.steps.find(x => x.bus); return st && trackBus(st.l.routeId, st.bus.key); }
+  if (tr) { const o = find(tr), st = o.eff.steps.find(x => x.bus); return st && trackBus(st.bus.routeId, st.bus.key); }
   const card = t.closest('[data-opt]');
   if (!card) return;
   const opening = state.sel !== card.dataset.opt;
@@ -1321,7 +1318,7 @@ function redrawTripBuses() {
   for (const o of show) for (const st of o.eff.steps) {
     if (st.l.t !== 'bus') continue;
     for (const v of state.vehicles.values()) {
-      if (v.routeId !== st.l.routeId || !(state.etas.get(`${st.l.board.id}|${v.routeId}|${v.key}`) >= 0)) continue;
+      if (!onLeg(st.l, v.routeId) || !(state.etas.get(`${st.l.board.id}|${v.routeId}|${v.key}`) >= 0)) continue;
       const mine = st.bus?.key === v.key;
       if (!want.has(v.key) || mine) want.set(v.key, { v, l: st.l, mine });
     }
@@ -1398,7 +1395,7 @@ function liveSocket(refs, onData, onBatch, quiet = false) {
 // --- route tracking: one route end to end, every live bus on it, follow a bus stop by stop ---
 let mode = 'trip';
 const TRACK_C = '#3b82f6', FOLLOW_STOPS = 10;
-const track = { route: null, line: null, sock: null, refs: new Set(), vehicles: new Map(), etas: new Map(), markers: new Map(),
+const track = { route: null, line: null, sock: null, refs: new Set(), vehicles: new Map(), etas: new Map(), markers: new Map(), group: new Map(),
   follow: null, autoPan: true, reverseId: null, live: false, myStop: null, myStopDist: null, myStopMk: null, pendingFollow: null };
 layers.track = L.layerGroup().addTo(map);
 
@@ -1443,7 +1440,7 @@ function decodePoly(s) {
 
 function stopTrack() {
   if (track.sock) { track.sock.close(); track.sock = null; }
-  layers.track.clearLayers(); track.markers.clear(); track.vehicles.clear(); track.etas.clear(); track.refs.clear();
+  layers.track.clearLayers(); track.markers.clear(); track.vehicles.clear(); track.etas.clear(); track.refs.clear(); track.group.clear();
   track.follow = null; track.live = false; track.myStop = null; track.myStopMk = null;
 }
 
@@ -1472,25 +1469,41 @@ async function openRoute(id) {
     updateMyStop();
     track.sock = liveSocket(track.refs, onTrackData, onTrackBatch);
     renderTrack();
-    // the other direction usually has the same name with the ends swapped;
-    // also collect same-direction siblings (Chalo often has stale duplicate route IDs)
+    loadTrackGroup(r);
+    // the other direction usually has the same name with the ends swapped
     routeSearch(r.name).then(list => {
       const rev = list.find(x => x.name === r.name && x.routeId !== id && x.from === r.to && x.to === r.from);
       if (rev && track.route === r) { track.reverseId = rev.routeId; renderTrack(); }
-      track.siblings = list.filter(x => x.name === r.name && x.routeId !== id && x.from === r.from && x.to === r.to).map(x => x.routeId);
     }).catch(() => {});
-    // if the socket snapshot brings 0 buses, try a sibling route ID (stale Chalo duplicate)
-    setTimeout(() => {
-      if (track.route === r && track.vehicles.size === 0 && track.siblings?.length) {
-        openRoute(track.siblings.shift());
-      }
-    }, 6000);
   } catch (e) { setStatus('Couldn\'t load this route: ' + e.message); }
 }
 
+// Like BMTC's own site, a route shows the buses of all its IDs: Chalo has stale duplicates and depot or short-run
+// variants of one route number and puts live buses on any of them. The group is every ID of the same route number
+// running along three stretches of this route in this direction (/api/group); their buses show when their next stop
+// is on this route.
+async function loadTrackGroup(r) {
+  const n = r.stops.length; if (n < 2) return;
+  const at = f => r.stops[Math.round(f * (n - 1))].id;
+  const pairs = [[0, .5], [.5, 1], [.25, .75]].map(([a, b]) => `${at(a)}>${at(b)}`).filter(x => x.split('>')[0] !== x.split('>')[1]);
+  const g = await getJ(`/api/group?p=${pairs.join(',')}`).catch(() => ({}));
+  if (track.route !== r) return;
+  for (const list of Object.values(g)) for (const x of list || []) {
+    if (x.routeId === r.routeId || routeNo(x.name) !== routeNo(r.name) || track.group.has(x.routeId)) continue;
+    track.group.set(x.routeId, x.name);
+    const ref = 'routes:' + x.routeId;
+    track.refs.add(ref); if (track.sock?.connected) track.sock.emit('subscribe', JSON.stringify({ ref }));
+  }
+  syncFollowEtas(); renderTrack();
+}
+const trackIds = () => [track.route.routeId, ...track.group.keys()];
+// a bus on another ID of the group shows only while its next stop is on this route
+const onTrackRoute = v => v.routeId === track.route?.routeId || !!track.route?.idx.has(v.nextStop);
+const variantOf = v => { const n = track.group.get(v.routeId); return n && n !== track.route.name ? n : ''; };
+
 function onTrackData(parts, key, d) {
   if (parts[0] === 'routes' && d._latitude != null)
-    track.vehicles.set(key, { key, vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
+    track.vehicles.set(key, { key, routeId: parts[1], vNo: d.vNo, lat: d._latitude, lon: d._longitude, bearing: d.bearing, halted: d._isHalted, nextStop: d.sId, ts: d.tS });
   else if (parts[0] === 'etas') track.etas.set(parts[1] + '|' + key, d.eta);
 }
 let trackRenderT;
@@ -1508,8 +1521,8 @@ function onTrackBatch(fromMessage) {
 function syncFollowEtas() {
   const r = track.route, v = track.follow && track.vehicles.get(track.follow), want = new Set();
   const i = v ? r.idx.get(v.nextStop) : null;
-  if (i != null) for (const s of r.stops.slice(i, i + FOLLOW_STOPS)) want.add(`etas:${s.id}:${r.routeId}`);
-  if (track.myStop) want.add(`etas:${track.myStop.id}:${r.routeId}`);
+  if (i != null) for (const s of r.stops.slice(i, i + FOLLOW_STOPS)) want.add(`etas:${s.id}:${v.routeId || r.routeId}`);
+  if (track.myStop) for (const id of trackIds()) want.add(`etas:${track.myStop.id}:${id}`);
   for (const ref of [...track.refs]) if (ref.startsWith('etas:') && !want.has(ref)) {
     track.refs.delete(ref); track.sock?.emit('unsubscribe', JSON.stringify({ ref }));
   }
@@ -1521,6 +1534,7 @@ function syncFollowEtas() {
 function drawTrackBuses() {
   const r = track.route; if (!r) return;
   for (const v of track.vehicles.values()) {
+    if (!onTrackRoute(v)) { const m = track.markers.get(v.key); if (m) { layers.track.removeLayer(m); track.markers.delete(v.key); } continue; }
     const dim = !!track.follow && track.follow !== v.key;
     const tag = (v.vNo || '').slice(-4) || r.name, look = `${v.bearing}|${dim}|${v.halted}`;
     let m = track.markers.get(v.key);
@@ -1545,15 +1559,10 @@ function updateMyStop() {
   if (bd > 3000) best = null; // too far away to call it your stop
   track.myStopDist = bd;
   if (best?.id === track.myStop?.id) return;
-  if (track.myStop) {
-    const ref = `etas:${track.myStop.id}:${r.routeId}`;
-    track.refs.delete(ref); track.sock?.emit('unsubscribe', JSON.stringify({ ref }));
-    if (track.myStopMk) layers.track.removeLayer(track.myStopMk);
-  }
+  if (track.myStop && track.myStopMk) layers.track.removeLayer(track.myStopMk);
   track.myStop = best; track.myStopMk = null;
+  syncFollowEtas(); // re-aims the your-stop ETA subscriptions
   if (best) {
-    const ref = `etas:${best.id}:${r.routeId}`;
-    track.refs.add(ref); if (track.sock?.connected) track.sock.emit('subscribe', JSON.stringify({ ref }));
     track.myStopMk = L.circleMarker([best.lat, best.lon], { radius: 8, color: '#4285f4', weight: 3, fillColor: '#0b0d10', fillOpacity: 1 })
       .bindTooltip('Your stop: ' + best.name).addTo(layers.track);
   }
@@ -1593,7 +1602,7 @@ function renderTrack() {
     return;
   }
   const isFav = saved.routes.some(f => f.routeId === r.routeId);
-  const buses = [...track.vehicles.values()].map(v => ({ ...v, i: r.idx.get(v.nextStop) })).sort((a, b) => (a.i ?? 1e9) - (b.i ?? 1e9));
+  const buses = [...track.vehicles.values()].filter(onTrackRoute).map(v => ({ ...v, i: r.idx.get(v.nextStop), variant: variantOf(v) })).sort((a, b) => (a.i ?? 1e9) - (b.i ?? 1e9));
   const head = `<div class="tcard"><div class="rtop"><span class="badge" style="--rc:${TRACK_C}">${r.name}</span>
       ${serviceTags(r.tags, r.name)}
       <button class="bell" id="favBtn" title="${isFav ? 'Remove from favourites' : 'Add to favourites'}">${isFav ? '★' : '☆'}</button>
@@ -1607,14 +1616,14 @@ function renderTrack() {
       const eta = track.etas.get(s.id + '|' + v.key);
       return `<div class="tl-row${k === 0 ? ' next' : ''}${s.id === track.myStop?.id ? ' mine' : ''}"><i class="tl-dot"></i><span>${s.name}</span><span>${eta >= 0 ? fmtEta(eta) : k === 0 ? 'next stop' : ''}</span></div>`;
     }).join('');
-    body = `<div class="tcard sel"><div class="rtop"><b>${v.vNo || 'Bus'}</b>${v.halted ? '<span class="tag">halted</span>' : ''}<span class="live-count">updated ${ago(v.ts)}</span></div>
+    body = `<div class="tcard sel"><div class="rtop"><b>${v.vNo || 'Bus'}</b>${variantOf(v) ? `<span class="tag">${esc(variantOf(v))}</span>` : ''}${v.halted ? '<span class="tag">halted</span>' : ''}<span class="live-count">updated ${ago(v.ts)}</span></div>
       <div class="tacts">${track.myStop ? '<button class="tbtn" id="followBell">🔔 Alert at your stop</button>' : ''}${track.autoPan ? '' : '<button class="tbtn" id="recenterBtn">◎ Re-center</button>'}<button class="tbtn" id="unfollowBtn">✕ Stop following</button></div>
       <div class="tl">${rows}</div></div>`;
   } else if (buses.length) {
     body = `<div class="thead">${buses.length} bus${buses.length === 1 ? '' : 'es'} live · tap one to follow it</div>` + buses.map(b => {
       const left = b.i != null ? r.stops.length - 1 - b.i : null;
       return `<div class="tbus" data-key="${b.key}"><div><b>${b.vNo || 'Bus'}</b>${b.halted ? ' · halted' : ''}
-        <small>${b.i != null ? `Next: ${r.stops[b.i].name}` : 'Position on route unknown'}</small></div>
+        <small>${b.i != null ? `Next: ${esc(r.stops[b.i].name)}` : 'Position on route unknown'}${b.variant ? ` · ${esc(b.variant)}` : ''}</small></div>
         <span>${left != null ? `${left} stop${left === 1 ? '' : 's'} to go` : ''}</span></div>`;
     }).join('');
   } else body = `<div class="empty">${track.live ? 'No live buses on this route right now.' : 'Connecting to the live feed…'}</div>`;
@@ -1632,10 +1641,10 @@ $('track').addEventListener('click', e => {
     const i = saved.routes.findIndex(f => f.routeId === r.routeId);
     if (i >= 0) saved.routes.splice(i, 1); else saved.routes.push({ routeId: r.routeId, name: r.name, from: r.from, to: r.to });
     persist(); renderTrack();
-  } else if (id === 'myStopBell' && track.myStop) addAlert({ kind: 'live', label: `${r.name} at ${track.myStop.name}`, stopId: track.myStop.id, routeId: r.routeId, key: null });
+  } else if (id === 'myStopBell' && track.myStop) addAlert({ kind: 'live', label: `${r.name} at ${track.myStop.name}`, stopId: track.myStop.id, routeIds: trackIds(), key: null });
   else if (id === 'followBell' && track.myStop && track.follow) {
     const v = track.vehicles.get(track.follow);
-    addAlert({ kind: 'live', label: `${r.name} ${v?.vNo || ''} at ${track.myStop.name}`, stopId: track.myStop.id, routeId: r.routeId, key: track.follow });
+    addAlert({ kind: 'live', label: `${r.name} ${v?.vNo || ''} at ${track.myStop.name}`, stopId: track.myStop.id, routeIds: [v?.routeId || r.routeId], key: track.follow });
   }
   else if (id === 'revBtn') openRoute(track.reverseId);
   else if (id === 'unfollowBtn') follow(track.follow);
@@ -2494,7 +2503,7 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) (() => {
 
   // network and errors
   window.fetch = async (u, o) => {
-    const s = performance.now(), url = String(u);
+    const s = performance.now(), url = typeof u === "string" ? u : u?.url || String(u);
     try { const r = await oFetch(u, o); log('net', `${r.status} ${url} ${Math.round(performance.now() - s)}ms`); return r; }
     catch (e) { log('net', `FAILED ${url} ${Math.round(performance.now() - s)}ms: ${e}`); throw e; }
   };
@@ -2549,17 +2558,17 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) (() => {
       if (l.t !== 'bus') return { firstRide: 'metro' };
       const why = eb => eb === undefined ? 'no ETA at your stop' : typeof eb !== 'number' ? `ETA not a number (${eb})` : eb < 0 ? 'already passed (eta -1)'
         : eb < ready - 30 ? `reaches your stop in ${Math.round(eb / 60)} min, before you can walk there (${Math.round(ready / 60)} min)` : 'catchable';
-      const pre = `${l.board.id}|${l.routeId}|`, seen = new Set();
-      const buses = [...state.vehicles.values()].filter(v => v.routeId === l.routeId).map(v => {
+      const seen = new Set();
+      const buses = [...state.vehicles.values()].filter(v => onLeg(l, v.routeId)).map(v => {
         seen.add(v.key);
-        const eb = state.etas.get(pre + v.key);
-        return { bus: v.vNo || v.key, etaBoard: eb, etaAlight: state.etas.get(`${l.alight.id}|${l.routeId}|${v.key}`), posAge: ageS(v.ts), why: why(eb) };
+        const eb = state.etas.get(`${l.board.id}|${v.routeId}|${v.key}`);
+        return { bus: v.vNo || v.key, on: v.routeId, etaBoard: eb, etaAlight: state.etas.get(`${l.alight.id}|${v.routeId}|${v.key}`), posAge: ageS(v.ts), why: why(eb) };
       });
       // ETAs for buses with no position: catchBus only looks at buses with a position, so these are ignored
-      for (const [k, eb] of state.etas) if (k.startsWith(pre) && !seen.has(k.slice(pre.length)))
-        buses.push({ bus: k.slice(pre.length), etaBoard: eb, why: 'ETA but no position yet (ignored by catchBus)' });
-      return { route: l.name, routeId: l.routeId, board: l.board.name, alight: l.alight.name, walkToStop: Math.round(ready) + 's',
-        aliases: [...state.routeAlias].filter(([, r]) => r === l.routeId).map(([s]) => s), buses };
+      for (const id of legIds(l)) { const pre = `${l.board.id}|${id}|`;
+        for (const [k, eb] of state.etas) if (k.startsWith(pre) && !seen.has(k.slice(pre.length)))
+          buses.push({ bus: k.slice(pre.length), on: id, etaBoard: eb, why: 'ETA but no position yet (ignored by catchBus)' }); }
+      return { route: l.name, routeId: l.routeId, group: legIds(l), board: l.board.name, alight: l.alight.name, walkToStop: Math.round(ready) + 's', buses };
     }
     return {};
   };
