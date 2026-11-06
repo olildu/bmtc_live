@@ -44,6 +44,12 @@
   .toggles { margin: 0 18px 8px; display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
   .toggles input { accent-color: var(--accent); }
   .toggles select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: inherit; padding: 2px 4px; }
+  .city-sw { display: flex; gap: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; margin-bottom: 8px; width: fit-content; }
+  .city-btn { border: 0; background: transparent; color: var(--faint); font: inherit; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 6px; cursor: pointer; }
+  .city-btn.on { background: var(--accent); color: #06120c; }
+  body.city-jaipur .city-btn.on { background: #ef4444; color: #fff; }
+  body.city-jaipur .trip-only { display: none !important; }
+  body.city-jaipur .bm-dot { }
   .tag.walk { color: var(--accent2); border-color: rgba(96,165,250,.4); }
   #routes, #track, #nearby { padding: 4px 12px 18px; }
   .tabs { display: flex; gap: 20px; margin: 12px 18px 2px; border-bottom: 1px solid var(--line); }
@@ -391,8 +397,12 @@
   <aside id="side">
     <div class="grip" id="grip"></div>
     <header>
-      <h1>BMTC <span>Live</span></h1>
-      <div class="sub">Plan a trip or track any route. Every bus, live.</div>
+      <div class="city-sw" id="citySw">
+        <button class="city-btn on" data-city="bengaluru">Bengaluru</button>
+        <button class="city-btn" data-city="jaipur">Jaipur</button>
+      </div>
+      <h1 id="cityTitle">BMTC <span>Live</span></h1>
+      <div class="sub" id="citySub">Plan a trip or track any route. Every bus, live.</div>
       <button id="tourBtn" title="Take a tour of the features" aria-label="Take a tour">?</button>
     </header>
     <div class="tabs"><button id="tabTrip" class="on">Plan trip</button><button id="tabRoute">Track route</button><button id="tabNearby">Nearby</button></div>
@@ -464,10 +474,17 @@
 <script>
 const COLORS = ['#22c55e','#3b82f6','#f59e0b','#ec4899','#a855f7','#14b8a6','#ef4444','#eab308','#06b6d4','#f97316','#84cc16','#8b5cf6'];
 const BLR = [12.9716, 77.5946];
+const JPR = [26.9036, 75.8142];
+const CITIES = {
+  bengaluru: { center: BLR, zoom: 12, title: 'BMTC <span>Live</span>', sub: 'Plan a trip or track any route. Every bus, live.', live: 'socket', hasTrip: true, hasTimetable: true },
+  jaipur: { center: JPR, zoom: 12, title: 'JCSTL <span>Live</span>', sub: 'Track Jaipur city buses, live on a map.', live: 'poll', pollMs: 20000, hasTrip: false, hasTimetable: false },
+};
+let city = 'bengaluru';
+try { const h = location.hash; if (h.includes('city=jaipur')) city = 'jaipur'; else if (localStorage.getItem('bmtc.city') === 'jaipur') city = 'jaipur'; } catch {}
 const $ = id => document.getElementById(id);
 const mq = matchMedia('(max-width: 760px)');
 
-const map = L.map('map', { zoomControl: false }).setView(BLR, 12);
+const map = L.map('map', { zoomControl: false }).setView(CITIES[city].center, CITIES[city].zoom);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 setTimeout(() => { const a = document.querySelector('.leaflet-control-attribution'); if (a) a.addEventListener('click', e => { if (!e.target.closest('a')) a.classList.toggle('show'); }); }, 500);
 const glLayer = L.maplibreGL({
@@ -520,6 +537,124 @@ let toastT;
 function toast(text, ms = 4000) {
   const t = $('toast'); t.innerHTML = text; t.classList.add('on');
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms);
+}
+
+// --- city switcher ---
+const jcstl = { routes: null, poll: null, vehicles: new Map(), listeners: [] };
+
+function setCity(c) {
+  if (c === city) return;
+  // tear down current live connections
+  if (city === 'bengaluru') { stopTripLive?.(); stopTrack?.(); stopNearby?.(); }
+  if (city === 'jaipur') { clearInterval(jcstl.poll); jcstl.poll = null; jcstl.vehicles.clear(); }
+  city = c;
+  try { localStorage.setItem('bmtc.city', c); } catch {}
+  document.body.classList.toggle('city-jaipur', c === 'jaipur');
+  for (const btn of $('citySw').children) btn.classList.toggle('on', btn.dataset.city === c);
+  const cfg = CITIES[c];
+  $('cityTitle').innerHTML = cfg.title;
+  $('citySub').textContent = cfg.sub;
+  // hide/show Plan trip tab for Jaipur (no trip planner)
+  $('tabTrip').style.display = cfg.hasTrip ? '' : 'none';
+  map.setView(cfg.center, cfg.zoom);
+  // reset to appropriate default mode
+  if (c === 'jaipur') {
+    if (mode === 'trip') setMode('nearby');
+  } else {
+    if (mode === 'trip') plan?.();
+  }
+}
+for (const btn of $('citySw').children) btn.onclick = () => setCity(btn.dataset.city);
+// apply initial city state (visual-only, no teardown since nothing is running yet)
+if (city === 'jaipur') {
+  document.body.classList.add('city-jaipur');
+  for (const btn of $('citySw').children) btn.classList.toggle('on', btn.dataset.city === 'jaipur');
+  $('cityTitle').innerHTML = CITIES.jaipur.title;
+  $('citySub').textContent = CITIES.jaipur.sub;
+  $('tabTrip').style.display = 'none';
+}
+
+// Jaipur poll-based live: fetches /api/jcstl?action=live every 20s, calls listeners
+async function jcstlPollOnce() {
+  try {
+    const data = await (await fetch('/api/jcstl?action=live')).json();
+    if (!Array.isArray(data)) return;
+    jcstl.vehicles.clear();
+    for (const v of data) {
+      if (!v.curlat || !v.curlong) continue;
+      jcstl.vehicles.set(v.vehno, {
+        key: v.vehno, vNo: v.vehno, routeId: v.rno || '', rno: v.rno || '',
+        lat: +v.curlat, lon: +v.curlong, prevLat: +v.prevlat, prevLon: +v.prevlong,
+        bearing: v.prevlat && v.curlat ? bearing(+v.prevlat, +v.prevlong, +v.curlat, +v.curlong) : null,
+        devid: v.devid,
+      });
+    }
+    for (const fn of jcstl.listeners) fn(jcstl.vehicles);
+  } catch (e) { console.warn('[jcstl] poll error:', e); }
+}
+function bearing(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180;
+  const dL = (lon2 - lon1) * r;
+  const y = Math.sin(dL) * Math.cos(lat2 * r);
+  const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dL);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+function jcstlStartPoll(listener) {
+  jcstl.listeners.push(listener);
+  if (!jcstl.poll) {
+    jcstlPollOnce();
+    jcstl.poll = setInterval(jcstlPollOnce, CITIES.jaipur.pollMs);
+  }
+}
+function jcstlStopPoll(listener) {
+  jcstl.listeners = jcstl.listeners.filter(f => f !== listener);
+  if (!jcstl.listeners.length) { clearInterval(jcstl.poll); jcstl.poll = null; }
+}
+
+// Jaipur route list (cached)
+async function jcstlRoutes() {
+  if (jcstl.routes) return jcstl.routes;
+  const data = await (await fetch('/api/jcstl?action=routes')).json();
+  jcstl.routes = Array.isArray(data) ? data : [];
+  return jcstl.routes;
+}
+
+// Jaipur route search: filter the cached route list by name
+async function jcstlRouteSearch(q) {
+  const routes = await jcstlRoutes();
+  const ql = q.toLowerCase();
+  return routes.filter(r => r.route_name?.toLowerCase().includes(ql) || r.route_orgno?.includes(ql)).slice(0, 20)
+    .map(r => ({ routeId: r.route_id, name: r.route_name, from: r.route_name.split(' TO ')[0], to: r.route_name.split(' TO ')[1] || '', tags: [r.routetype || ''] }));
+}
+
+// Jaipur route details: stops from rt/rvsearching, polyline from rt/bstrack
+async function jcstlRouteDetail(id) {
+  const data = await (await fetch(`/api/jcstl?action=route&id=${encodeURIComponent(id)}`)).json();
+  const stops = (data || []).map(s => ({ id: s.stop_code, name: s.stop_name, lat: +s.latitude, lon: +s.longitude, upcoming: s.upcomingbuses || [] }));
+  // collect ETAs from upcoming buses at each stop
+  const etas = new Map();
+  for (const s of stops) {
+    for (const b of s.upcoming) {
+      if (b.eta && b.vehicel_no) etas.set(s.id + '|' + b.vehicel_no, { eta: b.eta, msg: b.veh_msg || '', color: b.veh_color || '' });
+    }
+  }
+  return { stops, etas };
+}
+
+// Jaipur polyline: fetch from rt/bstrack using a live vehicle on the route
+async function jcstlPolyline(routeNo, vehicles) {
+  const veh = vehicles.values().next().value;
+  if (!veh) return '';
+  try {
+    const data = await (await fetch(`/api/jcstl?action=track&route=${encodeURIComponent(routeNo)}&veh=${encodeURIComponent(veh.vNo)}`)).json();
+    const polyInfo = data?.poly_info || [];
+    return polyInfo[0]?.polygon_string || '';
+  } catch { return ''; }
+}
+
+// Jaipur stop view: buses arriving at a stop
+async function jcstlStopBuses(stopCode) {
+  return await (await fetch(`/api/jcstl?action=stop&code=${encodeURIComponent(stopCode)}`)).json();
 }
 
 // --- alerts: "tell me when the bus is N min away" / "remind me before the train" ---
@@ -619,6 +754,10 @@ setupSearch($('from'), $('fromSugg'), photon, it => setPoint('from', it.lat, it.
 setupSearch($('to'), $('toSugg'), photon, it => setPoint('to', it.lat, it.lon, it.name));
 // routes: Chalo's search by route number
 async function routeSearch(q) {
+  if (city === 'jaipur') {
+    const list = await jcstlRouteSearch(q);
+    return list.map(r => ({ ...r, detail: `${r.from} → ${r.to}` }));
+  }
   const list = await (await fetch(`/api/route?q=${encodeURIComponent(q)}`)).json();
   return (Array.isArray(list) ? list : []).map(r => ({ ...r, detail: `${r.from} → ${r.to}${serviceText(r.tags)}` }));
 }
@@ -1496,6 +1635,7 @@ function decodePoly(s) {
 
 function stopTrack() {
   if (track.sock) { track.sock.close(); track.sock = null; }
+  if (track._jcstlListener) { jcstlStopPoll(track._jcstlListener); track._jcstlListener = null; }
   layers.track.clearLayers(); track.markers.clear(); track.vehicles.clear(); track.etas.clear(); track.refs.clear(); track.group.clear();
   track.follow = null; track.live = false; track.myStop = null; track.myStopMk = null;
 }
@@ -1504,14 +1644,23 @@ async function openRoute(id) {
   stopTrack();
   setStatus('Loading route…', 'loading');
   try {
-    const r = await (await fetch(`/api/route?id=${encodeURIComponent(id)}`)).json();
+    let r;
+    if (city === 'jaipur') {
+      const detail = await jcstlRouteDetail(id);
+      const routes = await jcstlRoutes();
+      const meta = routes.find(x => x.route_id === id);
+      r = { routeId: id, name: meta?.route_name || id, from: detail.stops[0]?.name, to: detail.stops[detail.stops.length - 1]?.name,
+            tags: [meta?.routetype || ''], polyline: '', stops: detail.stops.map(s => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon })),
+            _jcstlEtas: detail.etas };
+    } else {
+      r = await (await fetch(`/api/route?id=${encodeURIComponent(id)}`)).json();
+    }
     if (r.error) throw new Error(r.error);
     if (mode !== 'route') return;
     r.idx = new Map(r.stops.map((s, k) => [s.id, k]));
     Object.assign(track, { route: r, reverseId: null, autoPan: true });
-    history.replaceState(null, '', `#route=${id}`);
+    history.replaceState(null, '', `#route=${id}${city === 'jaipur' ? '&city=jaipur' : ''}`);
     $('routeQ').value = r.name;
-    // the whole route on real roads, with every stop
     const pts = r.polyline ? decodePoly(r.polyline) : r.stops.map(s => [s.lat, s.lon]);
     track.line = L.polyline(pts, { color: TRACK_C, weight: 5, opacity: .9 }).addTo(layers.track);
     r.stops.forEach((s, k) => {
@@ -1521,17 +1670,42 @@ async function openRoute(id) {
     });
     setSheet('half');
     map.fitBounds(track.line.getBounds(), { paddingTopLeft: [20, 20], paddingBottomRight: [20, (mq.matches ? sheet.h : 0) + 20] });
-    track.refs.add('routes:' + id);
     updateMyStop();
-    track.sock = liveSocket(track.refs, onTrackData, onTrackBatch);
-    renderTrack();
-    loadTrackGroup(r);
+    if (city === 'jaipur') {
+      const meta = (await jcstlRoutes()).find(x => x.route_id === id);
+      const rno = meta?.route_orgno || id;
+      track._jcstlRno = rno;
+      // store ETAs from rvsearching for display
+      if (r._jcstlEtas) for (const [k, v] of r._jcstlEtas) track.etas.set(k, v.eta);
+      track._jcstlListener = vehicles => {
+        if (track.route !== r) return;
+        track.vehicles.clear();
+        for (const [k, v] of vehicles) {
+          if (v.rno === rno || v.rno === id) track.vehicles.set(k, { ...v, routeId: id });
+        }
+        track.live = true;
+        drawTrackBuses(); syncFollowEtas();
+        if (!trackRenderT) trackRenderT = setTimeout(() => { trackRenderT = null; renderTrack(); }, 500);
+      };
+      jcstlStartPoll(track._jcstlListener);
+      renderTrack();
+      // find other direction
+      const routes = await jcstlRoutes();
+      const rev = routes.find(x => x.route_id !== id && x.route_orgno === rno);
+      if (rev && track.route === r) { track.reverseId = rev.route_id; renderTrack(); }
+    } else {
+      track.refs.add('routes:' + id);
+      track.sock = liveSocket(track.refs, onTrackData, onTrackBatch);
+      renderTrack();
+      loadTrackGroup(r);
+    }
     if (tt.on && tt.mode === 'route') ttForRoute(r);
-    // the other direction usually has the same name with the ends swapped
-    routeSearch(r.name).then(list => {
-      const rev = list.find(x => x.name === r.name && x.routeId !== id && x.from === r.to && x.to === r.from);
-      if (rev && track.route === r) { track.reverseId = rev.routeId; renderTrack(); }
-    }).catch(() => {});
+    if (city !== 'jaipur') {
+      routeSearch(r.name).then(list => {
+        const rev = list.find(x => x.name === r.name && x.routeId !== id && x.from === r.to && x.to === r.from);
+        if (rev && track.route === r) { track.reverseId = rev.routeId; renderTrack(); }
+      }).catch(() => {});
+    }
   } catch (e) { setStatus('Couldn\'t load this route: ' + e.message); }
 }
 
@@ -1555,7 +1729,7 @@ async function loadTrackGroup(r) {
 }
 const trackIds = () => [track.route.routeId, ...track.group.keys()];
 // a bus on another ID of the group shows only while its next stop is on this route
-const onTrackRoute = v => v.routeId === track.route?.routeId || !!track.route?.idx.has(v.nextStop);
+const onTrackRoute = v => city === 'jaipur' ? true : (v.routeId === track.route?.routeId || !!track.route?.idx.has(v.nextStop));
 const variantOf = v => { const n = track.group.get(v.routeId); return n && n !== track.route.name ? n : ''; };
 
 function onTrackData(parts, key, d) {
@@ -1649,6 +1823,14 @@ function myStopLine(r) {
     <button class="bell" id="myStopBell" title="Alert me before the next bus reaches your stop">🔔</button></div>`;
 }
 const ago = ts => { if (!ts) return ''; const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? `${s}s ago` : `${Math.round(s / 60)} min ago`; };
+function nearestStopIdx(stops, lat, lon) {
+  let best = -1, bd = Infinity;
+  for (let i = 0; i < stops.length; i++) {
+    const d = (stops[i].lat - lat) ** 2 + (stops[i].lon - lon) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best >= 0 ? Math.min(best + 1, stops.length - 1) : null;
+}
 function renderTrack() {
   if (mode !== 'route') return;
   const r = track.route, el = $('track');
@@ -1659,7 +1841,11 @@ function renderTrack() {
     return;
   }
   const isFav = saved.routes.some(f => f.routeId === r.routeId);
-  const buses = [...track.vehicles.values()].filter(onTrackRoute).map(v => ({ ...v, i: r.idx.get(v.nextStop), variant: variantOf(v) })).sort((a, b) => (a.i ?? 1e9) - (b.i ?? 1e9));
+  const buses = [...track.vehicles.values()].filter(onTrackRoute).map(v => {
+    let i = r.idx.get(v.nextStop);
+    if (i == null && city === 'jaipur' && v.lat) i = nearestStopIdx(r.stops, v.lat, v.lon);
+    return { ...v, i, variant: variantOf(v) };
+  }).sort((a, b) => (a.i ?? 1e9) - (b.i ?? 1e9));
   const head = `<div class="tcard"><div class="rtop"><span class="badge" style="--rc:${TRACK_C}">${r.name}</span>
       ${serviceTags(r.tags, r.name)}
       <button class="bell" id="favBtn" title="${isFav ? 'Remove from favourites' : 'Add to favourites'}">${isFav ? '★' : '☆'}</button>
@@ -1668,7 +1854,8 @@ function renderTrack() {
   const v = track.follow && track.vehicles.get(track.follow);
   let body;
   if (v) {
-    const i = r.idx.get(v.nextStop);
+    let i = r.idx.get(v.nextStop);
+    if (i == null && city === 'jaipur' && v.lat) i = nearestStopIdx(r.stops, v.lat, v.lon);
     const rows = i == null ? '<div class="empty">Waiting for this bus\'s position on the route…</div>' : r.stops.slice(i).map((s, k) => {
       const eta = track.etas.get(s.id + '|' + v.key);
       return `<div class="tl-row${k === 0 ? ' next' : ''}${s.id === track.myStop?.id ? ' mine' : ''}"><i class="tl-dot"></i><span>${s.name}</span><span>${eta >= 0 ? fmtEta(eta) : k === 0 ? 'next stop' : ''}</span></div>`;
@@ -1679,9 +1866,10 @@ function renderTrack() {
   } else if (buses.length) {
     body = `<div class="thead">${buses.length} bus${buses.length === 1 ? '' : 'es'} live · tap one to follow it</div>` + buses.map(b => {
       const left = b.i != null ? r.stops.length - 1 - b.i : null;
-      return `<div class="tbus" data-key="${b.key}"><div><b>${b.vNo || 'Bus'}</b>${b.halted ? ' · halted' : ''}
-        <small>${b.i != null ? `Next: ${esc(r.stops[b.i].name)}` : 'Position on route unknown'}${b.variant ? ` · ${esc(b.variant)}` : ''}</small></div>
-        <span>${left != null ? `${left} stop${left === 1 ? '' : 's'} to go` : ''}</span></div>`;
+      const vLabel = b.vNo ? (city === 'jaipur' ? b.vNo.replace(/^RJ\d{2}[A-Z]{2}/, '') || b.vNo : b.vNo) : 'Bus';
+      return `<div class="tbus" data-key="${b.key}"><div><b>${vLabel}</b>${b.halted ? ' · halted' : ''}
+        <small>${b.i != null ? `Near: ${esc(r.stops[b.i].name)}` : 'Locating on route…'}${b.variant ? ` · ${esc(b.variant)}` : ''}</small></div>
+        <span>${left != null ? `${left} stop${left === 1 ? '' : 's'} left` : ''}</span></div>`;
     }).join('');
   } else body = `<div class="empty">${track.live ? 'No live buses on this route right now.' : 'Connecting to the live feed…'}</div>`;
   el.innerHTML = head + body;
@@ -1929,8 +2117,71 @@ const nearPad = () => ({ paddingTopLeft: [20, 20], paddingBottomRight: [20, (mq.
 const routeInfo = id => near.routes.get(id) || near.extra.get(id);
 const nearTop = () => near.stack.at(-1) || null; // not `top`: window.top can't be redeclared
 
+async function startNearbyJaipur(at) {
+  if (!at && !me.pos) {
+    if (me.denied) setStatus('Location is off. Allow it to see buses around you, or move the map and tap "Search this area".');
+    else { setStatus('Finding your location…', 'loading'); startWatch(); }
+    updateAreaBtn(); return renderNearby();
+  }
+  const c = near.center = at || me.pos;
+  if (!at) {
+    near.circle = L.circle(c, { radius: radius(), color: '#ef4444', weight: 1, opacity: .6, fillColor: '#ef4444', fillOpacity: .06, interactive: false }).addTo(layers.near);
+    map.fitBounds(near.circle.getBounds(), nearPad());
+  }
+  setSheet('half'); updateAreaBtn();
+  setStatus('Finding Jaipur buses…', 'loading'); renderNearby();
+  // preload route names for display
+  const routeNames = new Map();
+  try {
+    const routes = await jcstlRoutes();
+    for (const r of routes) routeNames.set(r.route_orgno, r.route_name);
+  } catch {}
+  near._jcstlListener = vehicles => {
+    if (mode !== 'nearby') return;
+    near.vehicles.clear();
+    const rad = at ? Infinity : radius();
+    const anchor = at || near.center;
+    for (const [k, v] of vehicles) {
+      if (!v.lat || !v.lon) continue;
+      const d = map.distance(anchor, [v.lat, v.lon]);
+      if (at ? map.getBounds().pad(0.1).contains([v.lat, v.lon]) : d <= rad) {
+        const color = COLORS[Math.abs(hashCode(v.rno)) % COLORS.length];
+        const rName = routeNames.get(v.rno) || v.rno;
+        const towards = rName.includes(' TO ') ? rName.split(' TO ').pop() : '';
+        near.vehicles.set(k, { ...v, d, routeId: v.rno, r: { routeId: v.rno, name: v.rno, color, towards, tags: [], stop: { id: '', name: '', lat: v.lat, lon: v.lon } } });
+        if (!near.routes.has(v.rno)) near.routes.set(v.rno, { routeId: v.rno, name: v.rno, color, towards, tags: [], stop: { id: '', name: '', lat: 0, lon: 0 } });
+      }
+    }
+    near.live = true;
+    if (near.vehicles.size) setStatus(`<b style="color:var(--text)">${near.vehicles.size}</b> buses nearby`, 'live');
+    else setStatus('No buses found nearby');
+    drawNearBusesJaipur(); renderNearby();
+  };
+  jcstlStartPoll(near._jcstlListener);
+}
+function hashCode(s) { let h = 0; for (let i = 0; i < (s||'').length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; } return h; }
+function drawNearBusesJaipur() {
+  const shown = new Set();
+  for (const [id, v] of near.vehicles) {
+    shown.add(id);
+    let m = near.markers.get(id);
+    const look = `${v.bearing}|${v.rno}`;
+    if (!m) {
+      const color = v.r?.color || '#3b82f6';
+      m = L.marker([v.lat, v.lon], { icon: busIcon(color, v.rno || '?', v.bearing, false, false) }).addTo(layers.near);
+      m.on('click', () => { if (track) { track.pendingFollow = null; openRoute(v.rno); setMode('route'); } });
+      m._look = look; near.markers.set(id, m);
+    } else {
+      m.setLatLng([v.lat, v.lon]);
+      if (m._look !== look) { m.setIcon(busIcon(v.r?.color || '#3b82f6', v.rno || '?', v.bearing, false, false)); m._look = look; }
+    }
+  }
+  for (const [id, m] of near.markers) if (!shown.has(id)) { layers.near.removeLayer(m); near.markers.delete(id); }
+}
+
 function stopNearby() {
   if (near.sock) { near.sock.close(); near.sock = null; }
+  if (near._jcstlListener) { jcstlStopPoll(near._jcstlListener); near._jcstlListener = null; }
   stopMetroTrains();
   layers.near.clearLayers(); layers.nearSel.clearLayers(); layers.metro.clearLayers();
   near.markers.clear(); near.vehicles.clear(); near.etas.clear(); near.refs.clear(); near.extra.clear();
@@ -1940,6 +2191,7 @@ async function startNearby(at) {
   stopNearby();
   near.anchor = at ? 'area' : 'me';
   $('radiusLbl').hidden = !!at; $('nearMine').hidden = !at;
+  if (city === 'jaipur') return startNearbyJaipur(at);
   metroData().then(m => { metro = m; if (mode === 'nearby') { drawMetro(); renderNearby(); } }).catch(() => {});
   metroRidership().then(s => { if (s) { near.ride = s; if (mode === 'nearby') renderNearby(); } });
   if (!at && !me.pos) {
@@ -2089,6 +2341,25 @@ async function openStop(stop) {
   const sel = { type: 'stop', stop, routes: null };
   pushSel(sel);
   try {
+    if (city === 'jaipur' && stop.id) {
+      const data = await jcstlStopBuses(stop.id);
+      let n = near.routes.size;
+      sel.routes = (Array.isArray(data) ? data : []).map(b => {
+        const color = COLORS[Math.abs(hashCode(b.route_no || '')) % COLORS.length];
+        return {
+          routeId: b.route_no || '', name: b.route_no || '?', color,
+          towards: b.destination || b.destination_stop_name || '',
+          tags: [b.bus_type || ''],
+          stop: { id: stop.id, name: stop.name, lat: stop.lat, lon: stop.lon },
+          eta: b.eta ? +b.eta : undefined,
+          fare: b.fare || '',
+          seatAvailable: b.seat_available || '',
+          vehicleNo: b.vehicle_no || '',
+        };
+      });
+      if (nearTop() === sel) renderNearby();
+      return;
+    }
     const c = near.stopCache.get(stop.id), fresh = c && Date.now() - c.t < 5 * 60e3;
     const list = fresh ? c.list : await (await fetch(`/api/nearby?lat=${stop.lat}&lon=${stop.lon}&r=300`)).json();
     if (list.error) throw new Error(list.error);
@@ -2136,7 +2407,7 @@ function renderNearby() {
     : `<b style="color:var(--text)">${list.length}</b> buses within <b style="color:var(--text)">${fmtDist(R)}</b> of you · live`, 'live');
 }
 function renderMetroNear() {
-  if (!metro || !near.center) return '';
+  if (city === 'jaipur' || !metro || !near.center) return '';
   return `<div class="thead">Metro ${near.anchor === 'area' ? 'in this area' : 'near you'} <span class="sched">scheduled · trains moving live</span></div>`
     + (near.ride ? `<div class="ride" title="BMRCL daily ridership (open data, updated every ~24h)">${esc(near.ride)}</div>` : '')
     + nearestStations(near.center).map(s => {
@@ -2163,19 +2434,30 @@ function renderBusSel(sel, list, back) {
 function renderStopSel(sel, back) {
   let rows = '<div class="empty">Finding buses for this stop…</div>';
   if (sel.routes) {
-    const arriving = [], idle = [];
-    for (const r of sel.routes) {
-      const buses = [...near.vehicles.values()].filter(v => v.routeId === r.routeId).map(v => ({ v, eta: nearEta(r.stop.id, v) })).filter(x => x.eta >= 0);
-      if (buses.length) buses.forEach(x => arriving.push({ r, ...x })); else idle.push(r);
+    if (city === 'jaipur') {
+      // Jaipur stop view: each entry is a bus from vehnearstop with eta, fare, seat_available
+      rows = sel.routes.length ? sel.routes.map(r => {
+        const etaStr = r.eta ? `<b>${Math.ceil(r.eta / 60)} min</b>` : '';
+        const extras = [r.fare ? `₹${r.fare}` : '', r.seatAvailable ? `${r.seatAvailable} seats` : ''].filter(Boolean).join(' · ');
+        return `<div class="tbus" data-route="${r.routeId}"><div><span class="badge" style="--rc:${r.color}">${r.name}</span> <span class="nb-to">to ${esc(r.towards)}</span>
+          <small>${r.vehicleNo ? r.vehicleNo.replace(/^RJ\d{2}[A-Z]{2}/, '') || r.vehicleNo : 'Bus'}${extras ? ' · ' + extras : ''}</small></div>
+          <span>${etaStr}</span></div>`;
+      }).join('') : '<div class="empty">No buses at this stop right now.</div>';
+    } else {
+      const arriving = [], idle = [];
+      for (const r of sel.routes) {
+        const buses = [...near.vehicles.values()].filter(v => v.routeId === r.routeId).map(v => ({ v, eta: nearEta(r.stop.id, v) })).filter(x => x.eta >= 0);
+        if (buses.length) buses.forEach(x => arriving.push({ r, ...x })); else idle.push(r);
+      }
+      arriving.sort((a, b) => a.eta - b.eta);
+      rows = (arriving.length ? arriving.map(({ r, v, eta }) =>
+        `<div class="tbus" data-route="${r.routeId}" data-key="${v.key}"><div><span class="badge" style="--rc:${r.color}">${r.name}</span> <span class="nb-to">to ${r.towards}${serviceText(r.tags)}</span>
+          <small>${v.vNo || 'Bus'}${r.stop.id !== sel.stop.id ? ` · at ${esc(r.stop.name)}` : ''}</small></div>
+          <span><b>${fmtEta(eta)}</b> <button class="bell" data-alert="${r.routeId}|${v.key}|${r.stop.id}" title="Alert me">🔔</button></span></div>`).join('')
+        : `<div class="empty">${near.live ? 'No buses heading here right now.' : 'Connecting to the live feed…'}</div>`) +
+        (idle.length ? `<div class="thead">Also stops here (no live bus yet): ${[...new Set(idle.map(r => r.name))].map(esc).join(', ')}</div>` : '');
+      if (!sel.routes.length) rows = '<div class="empty">No routes found for this stop.</div>';
     }
-    arriving.sort((a, b) => a.eta - b.eta);
-    rows = (arriving.length ? arriving.map(({ r, v, eta }) =>
-      `<div class="tbus" data-route="${r.routeId}" data-key="${v.key}"><div><span class="badge" style="--rc:${r.color}">${r.name}</span> <span class="nb-to">to ${r.towards}${serviceText(r.tags)}</span>
-        <small>${v.vNo || 'Bus'}${r.stop.id !== sel.stop.id ? ` · at ${esc(r.stop.name)}` : ''}</small></div>
-        <span><b>${fmtEta(eta)}</b> <button class="bell" data-alert="${r.routeId}|${v.key}|${r.stop.id}" title="Alert me">🔔</button></span></div>`).join('')
-      : `<div class="empty">${near.live ? 'No buses heading here right now.' : 'Connecting to the live feed…'}</div>`) +
-      (idle.length ? `<div class="thead">Also stops here (no live bus yet): ${[...new Set(idle.map(r => r.name))].map(esc).join(', ')}</div>` : '');
-    if (!sel.routes.length) rows = '<div class="empty">No routes found for this stop.</div>';
   }
   return `<div class="tcard sel"><div class="rtop"><b>${esc(sel.stop.name)}</b><span class="live-count">bus stop</span></div>
       <div class="tacts">${back}</div></div><div class="thead">Arriving · soonest first</div>${rows}`;

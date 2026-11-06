@@ -11,7 +11,7 @@ const SIGNAL_PORT = process.env.SIGNAL_PORT || 3001;
 const VERSION = process.env.APP_VERSION || 'dev';
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
-const API = ['/api/plan', '/api/route', '/api/nearby', '/api/direct', '/api/tometro', '/api/walk', '/api/group', '/api/timetable'];
+const API = ['/api/plan', '/api/route', '/api/nearby', '/api/direct', '/api/tometro', '/api/walk', '/api/group', '/api/timetable', '/api/jcstl'];
 // Local builds only (release images set APP_VERSION to the tag): log every request, and accept the page's debug
 // logs at POST /api/_log, written to logs/client.log.
 const DEV = VERSION === 'dev';
