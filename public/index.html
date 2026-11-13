@@ -15,7 +15,7 @@
     --text: #eef0f3; --muted: #9298a4; --faint: #636b78; --accent: #26b56b; --accent2: #60a5fa; --warn: #f59e0b;
     /* service type + metro line colours used by the Plan trip ribbon */
     --c-walk: #525a68; --c-ord: #1fae63; --c-ac: #2f80ed; --c-air: #6366f1; --c-feeder: #d9922a;
-    --c-mp: #9b4fc0; --c-mg: #1fa85a; --c-my: #e6c023;
+    --c-mp: #9b4fc0; --c-mg: #1fa85a; --c-my: #e6c023; --c-mk: #E91E63;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -169,7 +169,7 @@
   .seg .ic { width: 13px; height: 13px; }
   .seg.walk { background: repeating-linear-gradient(115deg, #2a303a 0 5px, #222831 5px 10px); color: var(--muted); font-weight: 700; flex: 0 0 auto; }
   .seg.ord { background: var(--c-ord); color: #06281a; } .seg.ac { background: var(--c-ac); color: #eaf2ff; } .seg.air { background: var(--c-air); color: #eef0ff; }
-  .seg.feeder { background: var(--c-feeder); color: #2a1c05; } .seg.mp { background: var(--c-mp); color: #fff; } .seg.mg { background: var(--c-mg); color: #06281a; } .seg.my { background: var(--c-my); color: #2a2405; }
+  .seg.feeder { background: var(--c-feeder); color: #2a1c05; } .seg.mp { background: var(--c-mp); color: #fff; } .seg.mg { background: var(--c-mg); color: #06281a; } .seg.my { background: var(--c-my); color: #2a2405; } .seg.mk { background: var(--c-mk); color: #fff; }
   .trip.build .seg { animation: seg-in .5s cubic-bezier(.2,.7,.2,1) backwards; }
   @keyframes seg-in { from { transform: scaleX(.03); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
   .facts { display: flex; align-items: baseline; margin-top: 9px; }
@@ -203,7 +203,7 @@
   .leg:last-child .track .bar2 { display: none; }
   .leg.ord .cap, .leg.ac .cap, .leg.air .cap, .leg.feeder .cap, .leg.mg .cap, .leg.my .cap { color: #06120c; }
   .leg.ord .cap, .leg.ord .bar2 { background: var(--c-ord); } .leg.ac .cap, .leg.ac .bar2 { background: var(--c-ac); } .leg.air .cap, .leg.air .bar2 { background: var(--c-air); } .leg.feeder .cap, .leg.feeder .bar2 { background: var(--c-feeder); }
-  .leg.mp .cap, .leg.mp .bar2 { background: var(--c-mp); } .leg.mp .cap { color: #fff; } .leg.mg .cap, .leg.mg .bar2 { background: var(--c-mg); } .leg.my .cap, .leg.my .bar2 { background: var(--c-my); }
+  .leg.mp .cap, .leg.mp .bar2 { background: var(--c-mp); } .leg.mp .cap { color: #fff; } .leg.mg .cap, .leg.mg .bar2 { background: var(--c-mg); } .leg.my .cap, .leg.my .bar2 { background: var(--c-my); } .leg.mk .cap, .leg.mk .bar2 { background: var(--c-mk); } .leg.mk .cap { color: #fff; }
   .leg .info { padding: 1px 0 14px; font-size: 13px; line-height: 1.4; }
   .leg .info .h { font-weight: 700; } .leg .info .s { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
   .leg .time { margin-left: auto; color: var(--muted); font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 2px; }
@@ -1269,7 +1269,7 @@ const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
 // a Google Maps walking link to a stop/station, so the user walks there with live directions (no in-app tracker)
 const mapsWalk = to => to && isFinite(to.lat) ? `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lon}&travelmode=walking` : null;
 function busSeg(name, tags) { const t = tags || []; if (/^MF-/i.test(name || '')) return 'feeder'; if (t.includes('Vayu Vajra')) return 'air'; if (t.includes('Vajra')) return 'ac'; return 'ord'; }
-const lineSeg = line => line === 'PURPLE' ? 'mp' : line === 'GREEN' ? 'mg' : 'my';
+const lineSeg = line => line === 'PURPLE' ? 'mp' : line === 'GREEN' ? 'mg' : line === 'PINK' ? 'mk' : 'my';
 function serviceLabel(tags = [], name = '') { if (tags.includes('Vayu Vajra')) return 'AC · Airport'; if (tags.includes('Vajra')) return 'AC'; if (/^MF-/i.test(name)) return 'Metro feeder'; if (tags.includes('Ordinary')) return 'Non-AC'; return ''; }
 // the proportional colour ribbon: walks keep their natural width, buses/metro grow with their minutes
 function ribbonHtml(s) {
@@ -1428,7 +1428,7 @@ $('routes').addEventListener('click', e => {
 // --- map: the selected option (or the best few) leg by leg ---
 // bus line colour = the ribbon's service-type colour, so the map and the card agree
 const SEG_C = { ord: '#1fae63', ac: '#2f80ed', air: '#6366f1', feeder: '#d9922a' };
-const LINE_C = { PURPLE: '#9b4fc0', GREEN: '#1fa85a', YELLOW: '#e6c023' };
+const LINE_C = { PURPLE: '#9b4fc0', GREEN: '#1fa85a', YELLOW: '#e6c023', PINK: '#E91E63' };
 const busColor = l => SEG_C[busSeg(l.name, l.tags)] || routeColor(l.routeId);
 // real walking geometry (OSRM foot via /api/walk), cached; [] once fetched = none/failed, so we draw the straight fallback
 const walkCache = new Map(), walkPending = new Set();
